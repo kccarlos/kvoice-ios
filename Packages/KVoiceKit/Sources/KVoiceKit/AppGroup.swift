@@ -15,4 +15,14 @@ public enum AppGroup {
     public static var containerURL: URL? {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier)
     }
+
+    /// The shared directory KVoice stores modes, history and handoff state
+    /// in: the App Group container, or Application Support when the group
+    /// is unavailable (tests, unsigned builds).
+    public static var storageDirectory: URL {
+        if let containerURL {
+            return containerURL.appending(path: "KVoice", directoryHint: .isDirectory)
+        }
+        return URL.applicationSupportDirectory.appending(path: "KVoice", directoryHint: .isDirectory)
+    }
 }
