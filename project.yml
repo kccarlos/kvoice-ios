@@ -29,10 +29,13 @@ targets:
     sources:
       - path: App/Sources
       - path: App/Resources
+      - path: Shared/Intents
     dependencies:
       - package: KVoiceKit
         product: KVoiceKit
       - target: KVoiceKeyboard
+        embed: true
+      - target: KVoiceWidgets
         embed: true
     entitlements:
       path: App/KVoice.entitlements
@@ -109,6 +112,37 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.kccarlos.kvoice.ios.keyboard
         APPLICATION_EXTENSION_API_ONLY: YES
+
+  KVoiceWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widgets/Sources
+      - path: Shared/Intents
+    dependencies:
+      - package: KVoiceKit
+        product: KVoiceCore
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+    entitlements:
+      path: Widgets/KVoiceWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - $(KVOICE_APP_GROUP)
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: KVoice
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        KVoiceAppGroup: $(KVOICE_APP_GROUP)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.kccarlos.kvoice.ios.widgets
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) KVOICE_WIDGET_EXTENSION
 
   KVoiceKitTests:
     type: bundle.unit-test

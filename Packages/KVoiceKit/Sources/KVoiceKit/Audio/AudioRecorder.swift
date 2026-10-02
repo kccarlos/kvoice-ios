@@ -48,6 +48,13 @@ public protocol AudioRecording: AnyObject {
 /// Records the microphone with AVAudioEngine into a 16 kHz mono 16-bit WAV
 /// file, converting from the hardware format on the fly, and meters the
 /// level for a waveform.
+///
+/// With `keepsEngineRunning` the input engine keeps running between
+/// recordings (standby): iOS keeps an app with the audio background mode
+/// alive only while audio I/O runs, and an app may not start recording from
+/// the background, so standby is what lets the keyboard start the next
+/// dictation without opening the app. Starting a recording during standby
+/// only swaps in a new file writer.
 @MainActor
 public final class AudioRecorder: AudioRecording {
     public private(set) var isRecording = false
@@ -55,12 +62,24 @@ public final class AudioRecorder: AudioRecording {
     /// Deactivate the audio session after stopping. Set to false to keep the
     /// app alive in the background between dictations.
     public var deactivatesSessionOnStop = true
+    /// Keep the input engine running after a recording stops (standby).
+    /// Call `endStandby()` to stop it.
+    public var keepsEngineRunning = false
+    /// Called when the system stopped the engine (route or configuration
+    /// change) while recording or in standby.
+    public var engineStoppedHandler: (() -> Void)?
 
     private var engine: AVAudioEngine?
+    private var engineFormat: AVAudioFormat?
+    private var configurationObserver: (any NSObjectProtocol)?
+    private let tapTarget = TapTarget()
     private var writer: TapWriter?
     private var url: URL?
 
     public init() {}
+
+    /// Whether the input engine is running (recording or standing by).
+    public var isEngineRunning: Bool { engine?.isRunning ?? false }
 
     public static func requestPermission() async -> Bool {
         await AVAudioApplication.requestRecordPermission()
@@ -93,61 +112,118 @@ public final class AudioRecorder: AudioRecording {
         guard !isRecording else { throw RecordingError.alreadyRecording }
         guard await Self.requestPermission() else { throw RecordingError.permissionDenied }
         do {
-            try Self.activateSession()
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(), withIntermediateDirectories: true
             )
-            let engine = AVAudioEngine()
-            let input = engine.inputNode
-            let format = input.outputFormat(forBus: 0)
-            guard format.sampleRate > 0, format.channelCount > 0 else { throw RecordingError.noInputDevice }
-            let writer = try TapWriter(url: url, inputFormat: format) { [weak self] level in
+            if !isEngineRunning { try startEngine() }
+            guard let engineFormat else { throw RecordingError.noInputDevice }
+            let writer = try TapWriter(url: url, inputFormat: engineFormat) { [weak self] level in
                 Task { @MainActor in self?.levelHandler?(level) }
             }
-            input.installTap(onBus: 0, bufferSize: 4096, format: format, block: Self.tapBlock(writer))
-            engine.prepare()
-            try engine.start()
-            self.engine = engine
+            tapTarget.set(writer)
             self.writer = writer
             self.url = url
             isRecording = true
         } catch let error as RecordingError {
+            if !keepsEngineRunning { stopEngine() }
             throw error
         } catch {
+            if !keepsEngineRunning { stopEngine() }
             throw RecordingError.failed(error.localizedDescription)
         }
     }
 
+    private func startEngine() throws {
+        stopEngine(deactivating: false)
+        try Self.activateSession()
+        let engine = AVAudioEngine()
+        let input = engine.inputNode
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0 else { throw RecordingError.noInputDevice }
+        input.installTap(onBus: 0, bufferSize: 4096, format: format, block: Self.tapBlock(tapTarget))
+        engine.prepare()
+        try engine.start()
+        self.engine = engine
+        self.engineFormat = format
+        configurationObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.engineConfigurationChanged() }
+        }
+    }
+
+    private func engineConfigurationChanged() {
+        guard let engine, !engine.isRunning else { return }
+        // The input format may have changed; a new engine is built on the
+        // next start. A recording in progress cannot continue.
+        stopEngine(deactivating: false)
+        engineStoppedHandler?()
+    }
+
     /// Built outside the main actor so the audio thread never runs
     /// main-actor-isolated code.
-    nonisolated private static func tapBlock(_ writer: TapWriter) -> AVAudioNodeTapBlock {
-        { buffer, _ in writer.process(buffer) }
+    nonisolated private static func tapBlock(_ target: TapTarget) -> AVAudioNodeTapBlock {
+        { buffer, _ in target.process(buffer) }
     }
 
     public func stop() async throws -> Recording {
-        guard isRecording, let engine, let writer, let url else { throw RecordingError.notRecording }
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
+        guard isRecording, let writer, let url else { throw RecordingError.notRecording }
+        tapTarget.set(nil)
         let summary = writer.finish()
-        tearDown()
+        finishRecording()
         return Recording(url: url, duration: summary.duration, peakDBFS: summary.peakDBFS)
     }
 
     public func cancel() {
         guard isRecording else { return }
-        engine?.inputNode.removeTap(onBus: 0)
-        engine?.stop()
+        tapTarget.set(nil)
         _ = writer?.finish()
         if let url { try? FileManager.default.removeItem(at: url) }
-        tearDown()
+        finishRecording()
     }
 
-    private func tearDown() {
-        engine = nil
+    /// Stops a standby engine (no-op while recording; the engine then stops
+    /// when the recording does).
+    public func endStandby() {
+        keepsEngineRunning = false
+        guard !isRecording else { return }
+        stopEngine(deactivating: true)
+    }
+
+    private func finishRecording() {
         writer = nil
         url = nil
         isRecording = false
-        if deactivatesSessionOnStop { Self.deactivateSession() }
+        if !keepsEngineRunning || !isEngineRunning {
+            stopEngine(deactivating: deactivatesSessionOnStop)
+        }
+    }
+
+    private func stopEngine(deactivating: Bool = true) {
+        if let configurationObserver {
+            NotificationCenter.default.removeObserver(configurationObserver)
+        }
+        configurationObserver = nil
+        if let engine {
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+        }
+        engine = nil
+        engineFormat = nil
+        if deactivating { Self.deactivateSession() }
+    }
+}
+
+/// Routes tap buffers to the current writer, if any (none in standby).
+final class TapTarget: Sendable {
+    private let writer = Mutex<TapWriter?>(nil)
+
+    func set(_ writer: TapWriter?) {
+        self.writer.withLock { $0 = writer }
+    }
+
+    func process(_ buffer: AVAudioPCMBuffer) {
+        writer.withLock { $0 }?.process(buffer)
     }
 }
 

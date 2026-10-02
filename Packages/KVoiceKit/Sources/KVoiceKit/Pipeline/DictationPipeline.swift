@@ -68,6 +68,11 @@ public struct DictationResult: Sendable, Hashable {
     public var text: String { record.formattedText }
     /// Set when the AI step failed and `text` is the raw transcript.
     public var formattingError: DictationError?
+
+    public init(record: HistoryRecord, formattingError: DictationError? = nil) {
+        self.record = record
+        self.formattingError = formattingError
+    }
 }
 
 /// Record → stop → transcribe → format → save to history.

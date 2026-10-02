@@ -1,20 +1,38 @@
-import SwiftUI
+import AppIntents
 import KVoiceKit
+import SwiftUI
 
 @main
 struct KVoiceApp: App {
+    @State private var model = AppModel.shared
+    @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        KVoiceShortcuts.updateAppShortcutParameters()
+    }
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
+                .environment(model)
+                .onOpenURL { url in
+                    model.handoff.handle(url)
+                }
+                .task {
+                    await model.applyRetention()
+                }
         }
-    }
-}
-
-struct ContentView: View {
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView("KVoice", systemImage: "waveform",
-                                   description: Text("Dictation is coming soon."))
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active:
+                model.modes.reload()
+                model.settings.reload()
+            case .background:
+                // Leave the compact recorder once the keyboard session is over.
+                if model.handoff.sessionID == nil { model.handoff.isPresentingRecorder = false }
+            default:
+                break
+            }
         }
     }
 }
