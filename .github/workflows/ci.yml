@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: ['**']
+    tags-ignore: ['**']
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  XCODE_APP: ${{ vars.CI_XCODE_APP || '/Applications/Xcode_27.0.app' }}
+
+jobs:
+  build-test:
+    name: Build & test (simulator)
+    runs-on: ${{ vars.CI_MACOS_RUNNER || 'xcode-27' }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - name: Select Xcode
+        run: Scripts/ci/select-xcode.sh
+      - name: Generate project
+        run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
+          Scripts/generate.sh
+      - name: Test
+        run: |
+          set -o pipefail
+          dest="$(Scripts/ci/pick-simulator.sh)"
+          echo "Destination: $dest"
+          xcodebuild test \
+            -project KVoice.xcodeproj -scheme KVoice \
+            -destination "$dest" \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions
+      - name: Release build (generic device, unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project KVoice.xcodeproj -scheme KVoice -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions

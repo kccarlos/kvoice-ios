@@ -1,0 +1,6 @@
+// Shared build settings. Team ID and other machine-specific values live in
+// the untracked Config/Local.xcconfig (copy Config/Local.xcconfig.example).
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+KVOICE_APP_GROUP = group.io.github.kccarlos.kvoice.ios
+#include? "Local.xcconfig"

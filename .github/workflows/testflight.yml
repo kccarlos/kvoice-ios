@@ -1,0 +1,106 @@
+name: TestFlight
+
+# Every push to main archives, signs and uploads a TestFlight build.
+# Signed steps are skipped when the App Store Connect secrets or the
+# DEVELOPMENT_TEAM variable are missing, so forks stay green. Docs/CI.md.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'Docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  XCODE_APP: ${{ vars.CI_XCODE_APP || '/Applications/Xcode_27.0.app' }}
+  DEVELOPMENT_TEAM: ${{ vars.DEVELOPMENT_TEAM }}
+
+jobs:
+  preflight:
+    name: Preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      signing: ${{ steps.check.outputs.signing }}
+      build: ${{ steps.check.outputs.build }}
+    steps:
+      - id: check
+        env:
+          HAS_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID != '' }}
+          HAS_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID != '' }}
+          HAS_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 != '' }}
+          BUILD_BASE: ${{ vars.BUILD_NUMBER_BASE || '0' }}
+        run: |
+          signing=false
+          if [[ "$HAS_KEY_ID" == true && "$HAS_ISSUER" == true && "$HAS_P8" == true && -n "$DEVELOPMENT_TEAM" ]]; then
+            signing=true
+          else
+            echo "::notice::App Store Connect secrets or DEVELOPMENT_TEAM missing; skipping TestFlight."
+          fi
+          echo "signing=$signing" >>"$GITHUB_OUTPUT"
+          echo "build=$((BUILD_BASE + GITHUB_RUN_NUMBER))" >>"$GITHUB_OUTPUT"
+
+  testflight:
+    name: Archive & upload to TestFlight
+    needs: preflight
+    if: needs.preflight.outputs.signing == 'true'
+    runs-on: ${{ vars.CI_MACOS_RUNNER || 'xcode-27' }}
+    timeout-minutes: 90
+    environment: testflight
+    env:
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      BUILD: ${{ needs.preflight.outputs.build }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Select Xcode
+        run: Scripts/ci/select-xcode.sh
+      - name: Generate project
+        run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
+          Scripts/generate.sh
+      - name: Install signing material
+        env:
+          APP_STORE_CONNECT_API_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: Scripts/ci/import-signing.sh
+      - name: Archive
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project KVoice.xcodeproj -scheme KVoice -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/KVoice.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$APP_STORE_CONNECT_API_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="$BUILD" \
+            | xcbeautify --renderer github-actions
+      - name: Export and upload to App Store Connect
+        run: |
+          set -o pipefail
+          Scripts/ci/write-export-options.sh build/ExportOptions.plist
+          xcodebuild -exportArchive \
+            -archivePath build/KVoice.xcarchive \
+            -exportOptionsPlist build/ExportOptions.plist \
+            -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$APP_STORE_CONNECT_API_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
+            | xcbeautify --renderer github-actions
+      - name: Clean up signing material
+        if: always()
+        run: Scripts/ci/cleanup-signing.sh
