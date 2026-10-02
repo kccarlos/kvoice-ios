@@ -58,7 +58,7 @@ public enum ProviderError: Error, Equatable, Sendable, LocalizedError {
         case .unauthorized:
             "The provider rejected the API key."
         case .rateLimited:
-            "The provider is rate limiting requests. Try again shortly."
+            "The provider is rate limiting requests or your quota is used up. Try again shortly."
         case .http(let status, let message):
             "The provider returned an error (\(status))" + (message.map { ": \($0)" } ?? ".")
         case .malformedResponse:

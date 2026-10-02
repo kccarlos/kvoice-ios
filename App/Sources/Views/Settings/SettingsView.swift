@@ -240,7 +240,7 @@ struct TranscriptionSettingsView: View {
                 } header: {
                     Text("Cloud transcription")
                 } footer: {
-                    Text("Audio is sent to the provider you choose (any OpenAI-compatible /audio/transcriptions endpoint) with your key.")
+                    Text("Audio is sent to the provider you choose with your key: OpenAI, Groq, Google AI Studio, Google Vertex AI, or any OpenAI-compatible /audio/transcriptions endpoint. Google providers accept recordings up to about \(GeminiTranscriptionEngine.maxAudioMinutes) minutes.")
                 }
             }
         }
@@ -332,7 +332,7 @@ extension TranscriptionEngineSelection.Kind {
         switch self {
         case .appleSpeech: "On device, no download beyond a small system model."
         case .whisper: "On device, downloadable models, 100+ languages."
-        case .cloud: "OpenAI, Groq or a custom endpoint with your API key."
+        case .cloud: "OpenAI, Groq, Google AI Studio, Vertex AI or a custom endpoint with your API key."
         }
     }
 }

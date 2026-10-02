@@ -77,14 +77,14 @@ struct OnboardingView: View {
         case .engine:
             OnboardingPage(
                 icon: "text.bubble", title: "Speech recognition",
-                text: "Choose how speech becomes text. You can change this any time in Settings."
+                text: "Choose how speech becomes text. You can change this any time in Settings, where you can also use cloud transcription with your own OpenAI, Groq, Google AI Studio or Google Vertex AI key."
             ) {
                 EngineChoice()
             }
         case .ai:
             OnboardingPage(
                 icon: "sparkles", title: "AI formatting (optional)",
-                text: "AI modes rewrite your words into clean text. Use Apple Intelligence on this device, or add your own key for OpenAI, Anthropic, Gemini, Groq, OpenRouter or any compatible service in Settings."
+                text: "AI modes rewrite your words into clean text. Use Apple Intelligence on this device, or add your own key for OpenAI, Anthropic, Google AI Studio (Gemini), Google Vertex AI, Groq, OpenRouter or any compatible service in Settings."
             ) {
                 VStack(alignment: .leading, spacing: 12) {
                     AppleIntelligenceStatus()

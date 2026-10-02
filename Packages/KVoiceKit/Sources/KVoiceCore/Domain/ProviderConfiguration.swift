@@ -6,7 +6,12 @@ public enum ProviderKind: String, Codable, Sendable, Hashable, CaseIterable, Ide
     case appleIntelligence
     case openAI
     case anthropic
+    /// Google AI Studio (Gemini API). The raw value predates Vertex AI
+    /// support and is kept for persisted settings and Keychain entries.
     case gemini
+    /// Google Vertex AI: an express-mode API key, or a project and
+    /// location base URL.
+    case vertexAI
     case groq
     case openRouter
     /// Any OpenAI-compatible chat completions endpoint.
@@ -19,7 +24,8 @@ public enum ProviderKind: String, Codable, Sendable, Hashable, CaseIterable, Ide
         case .appleIntelligence: "Apple Intelligence"
         case .openAI: "OpenAI"
         case .anthropic: "Anthropic"
-        case .gemini: "Google Gemini"
+        case .gemini: "Google AI Studio (Gemini)"
+        case .vertexAI: "Google Vertex AI"
         case .groq: "Groq"
         case .openRouter: "OpenRouter"
         case .customOpenAICompatible: "Custom (OpenAI-compatible)"
@@ -38,7 +44,7 @@ public enum ProviderKind: String, Codable, Sendable, Hashable, CaseIterable, Ide
         switch self {
         case .appleIntelligence: .foundationModels
         case .anthropic: .anthropicMessages
-        case .gemini: .geminiGenerateContent
+        case .gemini, .vertexAI: .geminiGenerateContent
         case .openAI, .groq, .openRouter, .customOpenAICompatible: .openAIChatCompletions
         }
     }
@@ -46,12 +52,22 @@ public enum ProviderKind: String, Codable, Sendable, Hashable, CaseIterable, Ide
     /// Whether the provider needs an API key from the Keychain.
     public var requiresAPIKey: Bool { self != .appleIntelligence }
 
-    /// Whether the provider also serves OpenAI-compatible
-    /// `/audio/transcriptions` (usable as a cloud transcription engine).
-    public var supportsTranscription: Bool {
+    /// Whether the provider can be a cloud transcription engine.
+    public var supportsTranscription: Bool { transcriptionAPI != nil }
+
+    /// How the provider transcribes audio, or `nil` when it cannot.
+    public enum TranscriptionAPI: Sendable, Hashable {
+        /// OpenAI-compatible `/audio/transcriptions` (multipart upload).
+        case openAIAudioTranscriptions
+        /// Gemini `generateContent` with the audio as inline data.
+        case geminiGenerateContent
+    }
+
+    public var transcriptionAPI: TranscriptionAPI? {
         switch self {
-        case .openAI, .groq, .customOpenAICompatible: true
-        default: false
+        case .openAI, .groq, .customOpenAICompatible: .openAIAudioTranscriptions
+        case .gemini, .vertexAI: .geminiGenerateContent
+        case .appleIntelligence, .anthropic, .openRouter: nil
         }
     }
 
@@ -61,6 +77,9 @@ public enum ProviderKind: String, Codable, Sendable, Hashable, CaseIterable, Ide
         case .openAI: URL(string: "https://api.openai.com/v1")
         case .anthropic: URL(string: "https://api.anthropic.com/v1")
         case .gemini: URL(string: "https://generativelanguage.googleapis.com/v1beta")
+        /// Express mode. A project base is
+        /// `https://{location}-aiplatform.googleapis.com/v1/projects/{project}/locations/{location}`.
+        case .vertexAI: URL(string: "https://aiplatform.googleapis.com/v1")
         case .groq: URL(string: "https://api.groq.com/openai/v1")
         case .openRouter: URL(string: "https://openrouter.ai/api/v1")
         }
@@ -71,7 +90,7 @@ public enum ProviderKind: String, Codable, Sendable, Hashable, CaseIterable, Ide
         case .appleIntelligence: "system"
         case .openAI: "gpt-4.1-mini"
         case .anthropic: "claude-sonnet-5-5"
-        case .gemini: "gemini-2.5-flash"
+        case .gemini, .vertexAI: "gemini-2.5-flash"
         case .groq: "llama-3.3-70b-versatile"
         case .openRouter: "openai/gpt-4.1-mini"
         case .customOpenAICompatible: ""
@@ -84,6 +103,7 @@ public enum ProviderKind: String, Codable, Sendable, Hashable, CaseIterable, Ide
         case .openAI: "gpt-4o-transcribe"
         case .groq: "whisper-large-v3-turbo"
         case .customOpenAICompatible: "whisper-1"
+        case .gemini, .vertexAI: "gemini-2.5-flash"
         default: nil
         }
     }
@@ -116,7 +136,8 @@ public struct TranscriptionEngineSelection: Codable, Sendable, Hashable {
         case appleSpeech
         /// On-device Whisper via WhisperKit, downloadable models.
         case whisper
-        /// OpenAI-compatible `/audio/transcriptions` with the user's key.
+        /// A cloud provider with the user's key: OpenAI-compatible
+        /// `/audio/transcriptions`, or Google AI Studio / Vertex AI.
         case cloud
     }
 
@@ -152,8 +173,8 @@ public struct TranscriptionEngineSelection: Codable, Sendable, Hashable {
     }
 }
 
-/// An OpenAI-compatible speech-to-text endpoint. The key comes from the
-/// Keychain entry of `provider`.
+/// A cloud speech-to-text provider (OpenAI-compatible endpoint, Google AI
+/// Studio or Vertex AI). The key comes from the Keychain entry of `provider`.
 public struct CloudTranscriptionConfiguration: Codable, Sendable, Hashable {
     public var provider: ProviderKind
     public var baseURL: URL?

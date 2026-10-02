@@ -130,11 +130,15 @@ public struct AnthropicFormatter: TextFormatter {
     }
 }
 
-// MARK: - Google Gemini
+// MARK: - Google AI Studio and Vertex AI
 
-/// Gemini `POST {base}/models/{model}:generateContent`. The key goes in the
-/// `x-goog-api-key` header, never in the URL.
+/// Gemini `generateContent` on Google AI Studio or Vertex AI (see
+/// `GeminiAPI` for the endpoints). The key goes in the `x-goog-api-key`
+/// header, never in the URL.
 public struct GeminiFormatter: TextFormatter {
+    /// Low, so formatting stays close to what was said.
+    public static let temperature = 0.2
+
     public let configuration: ProviderConfiguration
     let apiKey: String
     let transport: any HTTPTransport
@@ -145,67 +149,28 @@ public struct GeminiFormatter: TextFormatter {
         self.transport = transport
     }
 
-    struct Part: Codable { let text: String? }
-    struct Content: Codable {
-        let role: String?
-        let parts: [Part]
-    }
-
-    struct Body: Encodable {
-        let system_instruction: Content
-        let contents: [Content]
-    }
-
-    struct Response: Decodable {
-        struct Candidate: Decodable {
-            let content: Content?
-            let finishReason: String?
-        }
-        let candidates: [Candidate]?
-    }
-
     public func makeRequest(for request: FormatRequest) throws -> URLRequest {
-        guard let base = configuration.resolvedBaseURL,
-              var components = URLComponents(url: base, resolvingAgainstBaseURL: false),
-              components.scheme?.lowercased() == "https" else {
-            throw ProviderError.invalidBaseURL
-        }
-        var path = components.path
-        while path.hasSuffix("/") { path.removeLast() }
-        let model = configuration.model.hasPrefix("models/")
-            ? String(configuration.model.dropFirst("models/".count))
-            : configuration.model
-        components.path = path + "/models/" + model + ":generateContent"
-        components.query = nil
-        guard let url = components.url else { throw ProviderError.invalidBaseURL }
-
         let prompt = PromptComposer.compose(request)
-        var urlRequest = try HTTP.jsonRequest(url: url, body: Body(
-            system_instruction: Content(role: nil, parts: [Part(text: prompt.system)]),
-            contents: [Content(role: "user", parts: [Part(text: prompt.user)])]
-        ))
-        urlRequest.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
-        return urlRequest
+        return try GeminiAPI.request(
+            kind: configuration.kind,
+            base: configuration.resolvedBaseURL,
+            model: configuration.model,
+            apiKey: apiKey,
+            body: GeminiAPI.Body(
+                system_instruction: GeminiAPI.Content(role: nil, parts: [.init(text: prompt.system)]),
+                contents: [GeminiAPI.Content(role: "user", parts: [.init(text: prompt.user)])],
+                generation_config: GeminiAPI.GenerationConfig(temperature: Self.temperature)
+            )
+        )
     }
 
     public static func parse(_ data: Data) throws -> String {
-        guard let response = try? JSONDecoder().decode(Response.self, from: data) else {
-            throw ProviderError.malformedResponse
-        }
-        guard let candidate = response.candidates?.first else {
-            // No candidates means the prompt itself was blocked.
-            throw ProviderError.refused
-        }
-        let joined = (candidate.content?.parts ?? []).compactMap(\.text).joined()
-        let text = PromptComposer.cleanedOutput(joined)
-        guard !text.isEmpty else {
-            if candidate.finishReason == "SAFETY" { throw ProviderError.refused }
-            throw ProviderError.emptyResponse
-        }
+        let text = PromptComposer.cleanedOutput(try GeminiAPI.text(from: data))
+        guard !text.isEmpty else { throw ProviderError.emptyResponse }
         return text
     }
 
     public func format(_ request: FormatRequest) async throws -> String {
-        try Self.parse(try await HTTP.send(makeRequest(for: request), with: transport))
+        try Self.parse(try await GeminiAPI.send(makeRequest(for: request), with: transport))
     }
 }

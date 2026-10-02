@@ -33,6 +33,34 @@ struct ProviderConfigurationFields: View {
                     .autocorrectionDisabled()
             }
             APIKeyField(provider: configuration.kind)
+            ProviderSetupHint(provider: configuration.kind)
+        }
+    }
+}
+
+/// Where to get a key and what the base URL means, for providers that need
+/// more than a pasted key.
+struct ProviderSetupHint: View {
+    let provider: ProviderKind
+
+    var body: some View {
+        if let text = provider.setupHint {
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+extension ProviderKind {
+    var setupHint: String? {
+        switch self {
+        case .gemini:
+            "Create a key at aistudio.google.com (Get API key). Type any Gemini model ID, for example gemini-2.5-flash."
+        case .vertexAI:
+            "Use a Vertex AI express-mode API key from the Google Cloud console with the default URL, or set the base URL to https://LOCATION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/LOCATION. Type any Gemini model ID, for example gemini-2.5-flash."
+        default:
+            nil
         }
     }
 }
@@ -209,6 +237,7 @@ struct CloudTranscriptionFields: View {
                 .autocorrectionDisabled()
         }
         APIKeyField(provider: configuration.provider)
+        ProviderSetupHint(provider: configuration.provider)
     }
 }
 

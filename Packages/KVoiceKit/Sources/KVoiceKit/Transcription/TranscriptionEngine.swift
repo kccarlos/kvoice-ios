@@ -37,7 +37,7 @@ public struct TranscriptionResult: Sendable, Hashable {
 }
 
 /// Speech-to-text from an audio file. Implemented by Apple Speech, WhisperKit
-/// and the cloud endpoint.
+/// and the cloud providers.
 public protocol TranscriptionEngine: Sendable {
     func transcribe(_ request: TranscriptionRequest) async throws -> TranscriptionResult
 }
@@ -52,6 +52,8 @@ public enum TranscriptionError: Error, Equatable, Sendable, LocalizedError {
     /// The Whisper model is not downloaded yet.
     case modelNotInstalled(String)
     case assetsNotInstalled
+    /// The recording is over the engine's upload limit.
+    case audioTooLong(maxMinutes: Int)
     case failed(String)
 
     public var errorDescription: String? {
@@ -62,6 +64,7 @@ public enum TranscriptionError: Error, Equatable, Sendable, LocalizedError {
         case .engineUnavailable(let reason): reason
         case .modelNotInstalled(let name): "Download the \(name) model in Settings first."
         case .assetsNotInstalled: "The speech recognition model for this language is not installed yet."
+        case .audioTooLong(let minutes): "This recording is too long for this engine (about \(minutes) minutes at most). Record a shorter clip or choose another engine."
         case .failed(let reason): "Transcription failed: \(reason)"
         }
     }
@@ -101,10 +104,20 @@ public final class TranscriptionEngineFactory: TranscriptionEngineProviding {
             return whisperEngine.using(model)
         case .cloud:
             let configuration = selection.cloud ?? CloudTranscriptionConfiguration(provider: .openAI)
+            guard let api = configuration.provider.transcriptionAPI else {
+                throw TranscriptionError.engineUnavailable(
+                    "\(configuration.provider.displayName) does not offer transcription. Choose another provider in Settings."
+                )
+            }
             guard let key = try secrets.apiKey(for: configuration.provider), !key.isEmpty else {
                 throw ProviderError.missingAPIKey(configuration.provider)
             }
-            return CloudTranscriptionEngine(configuration: configuration, apiKey: key, transport: transport)
+            switch api {
+            case .openAIAudioTranscriptions:
+                return CloudTranscriptionEngine(configuration: configuration, apiKey: key, transport: transport)
+            case .geminiGenerateContent:
+                return GeminiTranscriptionEngine(configuration: configuration, apiKey: key, transport: transport)
+            }
         }
     }
 }
