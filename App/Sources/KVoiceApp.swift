@@ -19,6 +19,7 @@ struct KVoiceApp: App {
                     model.handoff.handle(url)
                 }
                 .task {
+                    if let url = AppPreferences.launchURL { model.handoff.handle(url) }
                     await model.applyRetention()
                 }
         }

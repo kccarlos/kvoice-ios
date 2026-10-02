@@ -12,8 +12,8 @@ struct HandoffRecordingView: View {
         VStack(spacing: 28) {
             Spacer()
 
-            Label(pipeline.recordingMode?.name ?? model.modes.activeMode.name,
-                  systemImage: pipeline.recordingMode?.icon ?? model.modes.activeMode.icon)
+            let mode = pipeline.recordingMode ?? model.handoff.sessionMode ?? model.modes.activeMode
+            Label(mode.name, systemImage: mode.icon)
                 .font(.subheadline.weight(.semibold))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)

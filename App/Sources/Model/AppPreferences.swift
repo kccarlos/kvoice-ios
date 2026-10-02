@@ -23,10 +23,19 @@ enum AppPreferences {
 
     static let keepAliveChoices = [0, 1, 5, 10, 15]
 
-    /// UI-test and screenshot hooks: `-kvoiceSkipOnboarding`, `-kvoiceTab <name>`.
+    /// UI-test and screenshot hooks: `-kvoiceSkipOnboarding`, `-kvoiceTab <name>`,
+    /// `-kvoiceOpenURL <url>`.
     static var launchArguments: [String] { ProcessInfo.processInfo.arguments }
 
     static var skipsOnboarding: Bool { launchArguments.contains("-kvoiceSkipOnboarding") }
+
+    /// `-kvoiceOpenURL <url>`: handle a URL at launch as if opened (the
+    /// simulator asks for confirmation when a URL is opened from the host).
+    static var launchURL: URL? {
+        guard let index = launchArguments.firstIndex(of: "-kvoiceOpenURL"),
+              launchArguments.indices.contains(index + 1) else { return nil }
+        return URL(string: launchArguments[index + 1])
+    }
 
     static var initialTab: AppTab? {
         guard let index = launchArguments.firstIndex(of: "-kvoiceTab"),

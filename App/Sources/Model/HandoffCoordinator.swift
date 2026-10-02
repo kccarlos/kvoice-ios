@@ -19,6 +19,8 @@ import Observation
 final class HandoffCoordinator {
     /// The keyboard session being recorded or processed.
     private(set) var sessionID: UUID?
+    /// The mode of the latest keyboard session (shown after it ends).
+    private(set) var sessionMode: Mode?
     /// Show the compact recording screen.
     var isPresentingRecorder = false
     /// When standby ends, while the app listens for keyboard commands.
@@ -112,6 +114,7 @@ final class HandoffCoordinator {
         pendingFailure = nil
         if presentsRecorder { isPresentingRecorder = true }
         let mode = modeID.flatMap(model.modes.mode(id:)) ?? model.modes.activeMode
+        sessionMode = mode
         let recorder = model.recorder
         recorder.deactivatesSessionOnStop = false
         recorder.keepsEngineRunning = AppPreferences.keepAliveMinutes > 0
