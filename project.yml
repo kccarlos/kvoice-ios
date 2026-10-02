@@ -30,6 +30,8 @@ targets:
       - path: App/Sources
       - path: App/Resources
       - path: Shared/Intents
+      # The keyboard UI, for the debug-only `-kvoiceKeyboardPreview` host.
+      - path: Keyboard/Shared
     dependencies:
       - package: KVoiceKit
         product: KVoiceKit
@@ -80,6 +82,7 @@ targets:
     platform: iOS
     sources:
       - path: Keyboard/Sources
+      - path: Keyboard/Shared
     dependencies:
       # Core only: the keyboard must not link WhisperKit, Speech or
       # FoundationModels (extension memory limit).

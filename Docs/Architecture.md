@@ -55,6 +55,20 @@ iOS keyboards cannot record, so the keyboard asks the app. Files live in
    session id and mode) instead of opening the app. Standby ends on expiry,
    on an audio interruption, or when the setting is off.
 
+The keyboard's side is the pure state machine `KeyboardDictation`
+(KVoiceCore, unit-tested); `Keyboard/Shared/KeyboardModel` runs it against
+the mailbox and the text field. A pre-set `recording` counts as pending
+until the app has cleared `request.json`; an unopened request fails after
+8 s, an unanswered `start` command after 5 s (the next start then opens the
+app). The keyboard instance is usually recreated while KVoice is in front,
+so on appear it rebuilds state from `result.json`: it adopts an unfinished
+session (showing "Recording… tap to finish") and types an unconsumed `done`
+under 120 s old. The app is opened through the responder chain
+(`Keyboard/Sources/AppURLOpener.swift`; `extensionContext.open` does not
+work for keyboards). `Keyboard/Shared` is also compiled into the app for the
+debug-only `-kvoiceKeyboardPreview ready|noFullAccess|recording` host used
+for simulator screenshots.
+
 iOS keeps an app with the `audio` background mode alive only while audio
 I/O runs, and does not let it start recording from the background; standby
 therefore keeps the microphone input running (the system microphone
