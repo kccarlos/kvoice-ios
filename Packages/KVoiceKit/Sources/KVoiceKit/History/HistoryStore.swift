@@ -3,6 +3,16 @@ import SwiftData
 
 /// One dictation in the history.
 public struct HistoryRecord: Sendable, Hashable, Identifiable {
+    /// Whether the record holds a finished dictation.
+    public enum Status: String, Codable, Sendable, Hashable {
+        case done
+        /// Audio saved, not transcribed yet (an Action Button job in
+        /// progress, or one the system stopped: resumed at the next launch).
+        case pending
+        /// Transcription failed; the audio is kept to try again.
+        case failed
+    }
+
     public var id: UUID
     public var date: Date
     public var duration: TimeInterval
@@ -17,6 +27,9 @@ public struct HistoryRecord: Sendable, Hashable, Identifiable {
     /// The recording's file name inside `HistoryStore.recordingsDirectory`,
     /// or nil when audio is not kept.
     public var audioFileName: String?
+    public var status: Status
+    /// Why a `failed` record failed.
+    public var failureMessage: String?
 
     public init(
         id: UUID = UUID(),
@@ -28,7 +41,9 @@ public struct HistoryRecord: Sendable, Hashable, Identifiable {
         provider: String? = nil,
         rawTranscript: String,
         formattedText: String,
-        audioFileName: String? = nil
+        audioFileName: String? = nil,
+        status: Status = .done,
+        failureMessage: String? = nil
     ) {
         self.id = id
         self.date = date
@@ -40,6 +55,8 @@ public struct HistoryRecord: Sendable, Hashable, Identifiable {
         self.rawTranscript = rawTranscript
         self.formattedText = formattedText
         self.audioFileName = audioFileName
+        self.status = status
+        self.failureMessage = failureMessage
     }
 }
 
@@ -55,6 +72,10 @@ final class HistoryEntry {
     var rawTranscript: String
     var formattedText: String
     var audioFileName: String?
+    // Added with the Action Button flow; the defaults let SwiftData migrate
+    // existing stores.
+    var statusRaw: String = HistoryRecord.Status.done.rawValue
+    var failureMessage: String? = nil
 
     init(_ record: HistoryRecord) {
         id = record.id
@@ -67,13 +88,17 @@ final class HistoryEntry {
         rawTranscript = record.rawTranscript
         formattedText = record.formattedText
         audioFileName = record.audioFileName
+        statusRaw = record.status.rawValue
+        failureMessage = record.failureMessage
     }
 
     var record: HistoryRecord {
         HistoryRecord(
             id: id, date: date, duration: duration, modeID: modeID, modeName: modeName,
             engine: engine, provider: provider, rawTranscript: rawTranscript,
-            formattedText: formattedText, audioFileName: audioFileName
+            formattedText: formattedText, audioFileName: audioFileName,
+            status: HistoryRecord.Status(rawValue: statusRaw) ?? .done,
+            failureMessage: failureMessage
         )
     }
 }
@@ -92,9 +117,9 @@ public actor HistoryStore: ModelActor {
     ///   - inMemory: Keep the database in memory (previews).
     public init(directory: URL? = nil, inMemory: Bool = false) throws {
         let directory = directory ?? AppGroup.storageDirectory
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try AppGroup.createProtectedDirectory(at: directory)
         let recordings = directory.appending(path: "Recordings", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: recordings, withIntermediateDirectories: true)
+        try AppGroup.createProtectedDirectory(at: recordings)
         let configuration = inMemory
             ? ModelConfiguration(isStoredInMemoryOnly: true)
             : ModelConfiguration(url: directory.appending(path: "History.store"))
@@ -121,6 +146,25 @@ public actor HistoryStore: ModelActor {
         try modelContext.save()
     }
 
+    /// Updates the record with the same identifier, or adds it.
+    public func upsert(_ record: HistoryRecord) throws {
+        if try entry(id: record.id) != nil {
+            try update(record)
+        } else {
+            try add(record)
+        }
+    }
+
+    /// Records whose audio was saved but not transcribed, oldest first.
+    public func pending() throws -> [HistoryRecord] {
+        let raw = HistoryRecord.Status.pending.rawValue
+        let descriptor = FetchDescriptor<HistoryEntry>(
+            predicate: #Predicate { $0.statusRaw == raw },
+            sortBy: [SortDescriptor(\.date)]
+        )
+        return try modelContext.fetch(descriptor).map(\.record)
+    }
+
     /// Replaces the stored record with the same identifier.
     public func update(_ record: HistoryRecord) throws {
         guard let entry = try entry(id: record.id) else { return }
@@ -133,6 +177,8 @@ public actor HistoryStore: ModelActor {
         entry.rawTranscript = record.rawTranscript
         entry.formattedText = record.formattedText
         entry.audioFileName = record.audioFileName
+        entry.statusRaw = record.status.rawValue
+        entry.failureMessage = record.failureMessage
         try modelContext.save()
     }
 
@@ -179,13 +225,16 @@ public actor HistoryStore: ModelActor {
 
     /// Deletes records older than the policy allows and, when audio is not
     /// kept, every stored recording. Returns the number of records deleted.
+    /// Pending and failed records keep their audio: it is the only copy of
+    /// a dictation that has no text yet.
     @discardableResult
     public func applyRetention(_ policy: RetentionPolicy, now: Date = .now) throws -> Int {
         var deleted = 0
+        let done = HistoryRecord.Status.done.rawValue
         if let maximumAge = policy.period.maximumAge {
             let cutoff = now.addingTimeInterval(-maximumAge)
             let expired = try modelContext.fetch(FetchDescriptor<HistoryEntry>(
-                predicate: #Predicate { $0.date < cutoff }
+                predicate: #Predicate { $0.date < cutoff && $0.statusRaw == done }
             ))
             for entry in expired {
                 removeAudio(named: entry.audioFileName)
@@ -195,7 +244,7 @@ public actor HistoryStore: ModelActor {
         }
         if !policy.keepsAudio {
             let withAudio = try modelContext.fetch(FetchDescriptor<HistoryEntry>(
-                predicate: #Predicate { $0.audioFileName != nil }
+                predicate: #Predicate { $0.audioFileName != nil && $0.statusRaw == done }
             ))
             for entry in withAudio {
                 removeAudio(named: entry.audioFileName)

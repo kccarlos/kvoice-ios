@@ -90,6 +90,9 @@ public struct HandoffResult: Codable, Sendable, Hashable {
 }
 
 /// Whether the app can take keyboard commands without being opened.
+///
+/// A projection of `DictationActivity` (standby with a valid lease), written
+/// next to it by `writeActivity`; the activity is the authority.
 public struct HandoffAppState: Codable, Sendable, Hashable {
     /// The app is alive in the background with an active audio session and
     /// will react to `HandoffCommand`s.
@@ -134,6 +137,8 @@ public struct DictationHandoff: Sendable {
     static let commandFile = "command.json"
     static let resultFile = "result.json"
     static let appStateFile = "app-state.json"
+    static let activityFile = "activity.json"
+    static let presenceFile = "keyboard.json"
 
     /// The URL the keyboard opens to hand a session to the app.
     public static func dictationURL(sessionID: UUID) -> URL {
@@ -205,6 +210,21 @@ public struct DictationHandoff: Sendable {
         read(HandoffAppState.self, from: Self.appStateFile)
     }
 
+    /// The shared activity record (who owns the microphone).
+    public func readActivity() -> DictationActivity? {
+        read(DictationActivity.self, from: Self.activityFile)
+    }
+
+    /// Keyboard heartbeat: call about every 2 s while the keyboard is on
+    /// screen, and with nil when it goes away. Posts no notification.
+    public func writeKeyboardPresence(_ visibleAt: Date?) throws {
+        try write(KeyboardPresence(keyboardVisibleAt: visibleAt), to: Self.presenceFile)
+    }
+
+    public func readKeyboardPresence() -> KeyboardPresence? {
+        read(KeyboardPresence.self, from: Self.presenceFile)
+    }
+
     // MARK: App side
 
     public func readRequest() -> HandoffRequest? {
@@ -229,6 +249,18 @@ public struct DictationHandoff: Sendable {
         post(.handoffAppState)
     }
 
+    /// Writes the activity record and its `HandoffAppState` projection.
+    /// Only the app writes it.
+    public func writeActivity(_ activity: DictationActivity, now: Date = .now) throws {
+        try write(activity, to: Self.activityFile)
+        let state = activity.appState(now: now)
+        if readAppState().map({ $0.isListeningForCommands != state.isListeningForCommands || $0.expiresAt != state.expiresAt }) ?? true {
+            try write(state, to: Self.appStateFile)
+            post(.handoffAppState)
+        }
+        post(.dictationActivity)
+    }
+
     // MARK: Coding
 
     static func encoder() -> JSONEncoder {
@@ -245,8 +277,8 @@ public struct DictationHandoff: Sendable {
     }
 
     private func write(_ value: some Encodable, to file: String) throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try Self.encoder().encode(value).write(to: directory.appending(path: file), options: .atomic)
+        try AppGroup.createProtectedDirectory(at: directory)
+        try Self.encoder().encode(value).write(to: directory.appending(path: file), options: AppGroup.fileWriteOptions)
     }
 
     private func read<T: Decodable>(_ type: T.Type, from file: String) -> T? {

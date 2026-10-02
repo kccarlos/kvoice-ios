@@ -40,6 +40,8 @@ public protocol AudioRecording: AnyObject {
     var isRecording: Bool { get }
     /// Called on the main actor with a 0...1 level about 10 times a second.
     var levelHandler: ((Float) -> Void)? { get set }
+    /// Seconds captured so far in the recording in progress (0 when idle).
+    var recordedDuration: TimeInterval { get }
     func start(writingTo url: URL) async throws
     func stop() async throws -> Recording
     func cancel()
@@ -77,6 +79,10 @@ public final class AudioRecorder: AudioRecording {
     private var url: URL?
 
     public init() {}
+
+    public var recordedDuration: TimeInterval {
+        isRecording ? writer?.duration ?? 0 : 0
+    }
 
     /// Whether the input engine is running (recording or standing by).
     public var isEngineRunning: Bool { engine?.isRunning ?? false }
@@ -305,6 +311,11 @@ final class TapWriter: @unchecked Sendable {
         guard rms > 0 else { return 0 }
         let db = 20 * log10(rms)
         return min(1, max(0, (db + 60) / 60))
+    }
+
+    /// Seconds written so far.
+    var duration: TimeInterval {
+        state.withLock { Double($0.framesWritten) / AudioFile.sampleRate }
     }
 
     /// Closes the file and returns what was written.

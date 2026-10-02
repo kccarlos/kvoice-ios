@@ -25,4 +25,26 @@ public enum AppGroup {
         }
         return URL.applicationSupportDirectory.appending(path: "KVoice", directoryHint: .isDirectory)
     }
+
+    /// Files are readable after the first unlock, so App Intents work on a
+    /// locked device (the Keychain uses `AfterFirstUnlock` too).
+    public static var fileWriteOptions: Data.WritingOptions {
+        #if os(iOS)
+        [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
+        #else
+        [.atomic]
+        #endif
+    }
+
+    /// Creates a directory with the same data-protection class.
+    public static func createProtectedDirectory(at url: URL) throws {
+        #if os(iOS)
+        try FileManager.default.createDirectory(
+            at: url, withIntermediateDirectories: true,
+            attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]
+        )
+        #else
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        #endif
+    }
 }

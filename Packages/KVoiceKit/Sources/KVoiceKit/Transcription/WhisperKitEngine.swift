@@ -125,6 +125,11 @@ public actor WhisperKitEngine {
         _ = try await whisperKit(for: model)
     }
 
+    /// Whether `model` is loaded in this process (no load time to pay).
+    public func isLoaded(_ model: WhisperModel) -> Bool {
+        loaded?.id == model.id
+    }
+
     public func unload() async {
         if let loaded { await loaded.box.kit.unloadModels() }
         loaded = nil

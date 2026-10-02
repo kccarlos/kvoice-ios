@@ -90,6 +90,9 @@ public final class DictationPipeline {
 
     /// Called on every phase change (for example to update a keyboard handoff).
     @ObservationIgnored public var phaseHandler: ((DictationPhase) -> Void)?
+    /// Processing runs one job at a time: the app's own recordings and
+    /// Transcribe Audio jobs share this queue.
+    @ObservationIgnored public let jobs = SerialJobQueue()
 
     @ObservationIgnored private let recorder: any AudioRecording
     @ObservationIgnored private let engines: any TranscriptionEngineProviding
@@ -120,6 +123,12 @@ public final class DictationPipeline {
     }
 
     public var isRecording: Bool { recorder.isRecording }
+
+    /// Seconds captured so far in the recording in progress.
+    public var recordedDuration: TimeInterval { recorder.recordedDuration }
+
+    /// Where new recordings are written.
+    public var recordingsURL: URL { recordingsDirectory }
 
     /// Whether a dictation is recording or being processed.
     public var isBusy: Bool {
@@ -170,10 +179,13 @@ public final class DictationPipeline {
     }
 
     /// Transcribes and formats a recording (also used to re-run a history
-    /// item's audio with another mode).
+    /// item's audio with another mode). Drives `phase`.
     @discardableResult
     public func process(_ recording: Recording, mode: Mode) async throws -> DictationResult {
-        let task = Task { try await self.run(recording, mode: mode) }
+        // Waiting behind another job: show it as transcribing.
+        if jobs.isBusy { phase = .transcribing }
+        let options = JobOptions(updatesPhase: true)
+        let task = Task { try await self.jobs.run { try await self.run(recording, mode: mode, options: options) } }
         processingTask = task
         defer { processingTask = nil; recordingMode = nil }
         do {
@@ -188,6 +200,44 @@ public final class DictationPipeline {
         }
     }
 
+    /// How a background job runs.
+    public struct JobOptions: Sendable {
+        /// Transcribe with this engine instead of the mode's.
+        public var engineOverride: TranscriptionEngineSelection?
+        /// Complete this (pending) history record instead of adding one.
+        public var record: HistoryRecord?
+        /// Drive `phase` (the app's own recording).
+        public var updatesPhase: Bool
+        /// Called when the job reaches each stage.
+        public var onStage: (@MainActor @Sendable (DictationActivity.Stage) -> Void)?
+
+        public init(
+            engineOverride: TranscriptionEngineSelection? = nil,
+            record: HistoryRecord? = nil,
+            updatesPhase: Bool = false,
+            onStage: (@MainActor @Sendable (DictationActivity.Stage) -> Void)? = nil
+        ) {
+            self.engineOverride = engineOverride
+            self.record = record
+            self.updatesPhase = updatesPhase
+            self.onStage = onStage
+        }
+    }
+
+    /// Transcribes and formats a recording as a queued job without touching
+    /// `phase` (Transcribe Audio, resumed history records). Waits for the
+    /// jobs ahead of it. Throws `DictationError`.
+    @discardableResult
+    public func processJob(_ recording: Recording, mode: Mode, options: JobOptions) async throws -> DictationResult {
+        var options = options
+        options.updatesPhase = false
+        do {
+            return try await jobs.run { try await run(recording, mode: mode, options: options) }
+        } catch {
+            throw DictationError(error)
+        }
+    }
+
     /// Formats existing text with a mode (re-run without audio).
     public func reformat(_ transcript: String, mode: Mode) async throws -> String {
         guard mode.usesAI else { return transcript }
@@ -199,15 +249,17 @@ public final class DictationPipeline {
         }
     }
 
-    private func run(_ recording: Recording, mode: Mode) async throws -> DictationResult {
+    private func run(_ recording: Recording, mode: Mode, options: JobOptions) async throws -> DictationResult {
+        try Task.checkCancellation()
         let settings = settings()
         guard !SpeechGate.isSilent(peakDBFS: recording.peakDBFS) else {
             discardAudio(recording.url)
             throw DictationError.noSpeech
         }
 
-        phase = .transcribing
-        let engineSelection = settings.engine(for: mode)
+        if options.updatesPhase, phase != .transcribing { phase = .transcribing }
+        options.onStage?(.transcribing)
+        let engineSelection = options.engineOverride ?? settings.engine(for: mode)
         let transcription: TranscriptionResult
         do {
             let engine = try engines.engine(for: engineSelection)
@@ -231,7 +283,8 @@ public final class DictationPipeline {
         var formattingError: DictationError?
         var providerName: String?
         if mode.usesAI {
-            phase = .formatting
+            if options.updatesPhase { phase = .formatting }
+            options.onStage?(.formatting)
             let provider = settings.provider(for: mode)
             providerName = provider.kind == .appleIntelligence
                 ? provider.kind.displayName
@@ -254,6 +307,8 @@ public final class DictationPipeline {
             audioFileName = nil
         }
         let record = HistoryRecord(
+            id: options.record?.id ?? UUID(),
+            date: options.record?.date ?? .now,
             duration: recording.duration,
             modeID: mode.id,
             modeName: mode.name,
@@ -264,7 +319,11 @@ public final class DictationPipeline {
             audioFileName: audioFileName
         )
         if let history {
-            try? await history.add(record)
+            if options.record != nil {
+                try? await history.upsert(record)
+            } else {
+                try? await history.add(record)
+            }
         }
         return DictationResult(record: record, formattingError: formattingError)
     }

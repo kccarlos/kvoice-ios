@@ -66,6 +66,102 @@ public enum AudioFile {
         try file.write(from: buffer)
     }
 
+    /// Converts any audio file AVFoundation can read (the m4a/AAC that the
+    /// Shortcuts Record Audio action produces, CAF, WAV…) to the 16 kHz mono
+    /// 16-bit WAV the engines take. Streams through `AVAudioConverter` in
+    /// chunks, so long recordings never sit in memory whole.
+    public static func convertToProcessingWAV(from source: URL, to destination: URL) throws -> Recording {
+        let input: AVAudioFile
+        do {
+            input = try AVAudioFile(forReading: source, commonFormat: .pcmFormatFloat32, interleaved: false)
+        } catch {
+            throw TranscriptionError.unreadableAudio
+        }
+        let inputFormat = input.processingFormat
+        guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0,
+              let converter = AVAudioConverter(from: inputFormat, to: processingFormat) else {
+            throw TranscriptionError.unreadableAudio
+        }
+        let output: AVAudioFile
+        do {
+            output = try AVAudioFile(
+                forWriting: destination, settings: wavSettings,
+                commonFormat: .pcmFormatFloat32, interleaved: false
+            )
+        } catch {
+            throw TranscriptionError.failed("The recording could not be saved: \(error.localizedDescription)")
+        }
+
+        let chunk: AVAudioFrameCount = 16_384
+        let outputCapacity = AVAudioFrameCount((Double(chunk) * sampleRate / inputFormat.sampleRate).rounded(.up)) + 1_024
+        let reader = ChunkReader(file: input, format: inputFormat, chunk: chunk)
+        var peak: Float = 0
+        var frames: AVAudioFramePosition = 0
+        while true {
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: processingFormat, frameCapacity: outputCapacity) else {
+                throw TranscriptionError.unreadableAudio
+            }
+            var error: NSError?
+            let status = converter.convert(to: buffer, error: &error) { _, inputStatus in
+                reader.next(inputStatus)
+            }
+            guard status != .error, error == nil, !reader.failed else { throw TranscriptionError.unreadableAudio }
+            if buffer.frameLength > 0 {
+                for sample in samples(of: buffer) where sample.isFinite {
+                    peak = max(peak, abs(sample))
+                }
+                do {
+                    try output.write(from: buffer)
+                } catch {
+                    throw TranscriptionError.failed("The recording could not be saved: \(error.localizedDescription)")
+                }
+                frames += AVAudioFramePosition(buffer.frameLength)
+            }
+            if status == .endOfStream || (status == .inputRanDry && reader.finished) { break }
+        }
+        let peakDB = peak > 0 ? max(SpeechGate.silenceFloorDBFS, 20 * log10(peak)) : SpeechGate.silenceFloorDBFS
+        return Recording(url: destination, duration: Double(frames) / sampleRate, peakDBFS: peakDB)
+    }
+
+    /// Feeds file chunks to an `AVAudioConverter` input block.
+    private final class ChunkReader: @unchecked Sendable {
+        let file: AVAudioFile
+        let format: AVAudioFormat
+        let chunk: AVAudioFrameCount
+        private(set) var finished = false
+        private(set) var failed = false
+
+        init(file: AVAudioFile, format: AVAudioFormat, chunk: AVAudioFrameCount) {
+            self.file = file
+            self.format = format
+            self.chunk = chunk
+        }
+
+        func next(_ status: UnsafeMutablePointer<AVAudioConverterInputStatus>) -> AVAudioBuffer? {
+            guard !finished, file.framePosition < file.length,
+                  let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunk) else {
+                finished = true
+                status.pointee = .endOfStream
+                return nil
+            }
+            do {
+                try file.read(into: buffer, frameCount: chunk)
+            } catch {
+                failed = true
+                finished = true
+                status.pointee = .endOfStream
+                return nil
+            }
+            guard buffer.frameLength > 0 else {
+                finished = true
+                status.pointee = .endOfStream
+                return nil
+            }
+            status.pointee = .haveData
+            return buffer
+        }
+    }
+
     /// Duration of an audio file in seconds.
     public static func duration(of url: URL) -> TimeInterval {
         guard let file = try? AVAudioFile(forReading: url) else { return 0 }

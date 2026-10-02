@@ -63,6 +63,21 @@ public struct KeyboardDictation: Sendable, Equatable {
         case undoTapped(contextBeforeInput: String?)
         /// The user typed or deleted: the last insertion is no longer undoable.
         case userEdited
+        /// A fresh read of the shared `DictationActivity` (after its Darwin
+        /// notification, on appear, and on ticks so leases lapse).
+        case activityChanged(DictationActivity?, now: Date)
+    }
+
+    /// What another entry point is doing, from `DictationActivity`. Only
+    /// matters while the keyboard has no session of its own.
+    public enum External: Sendable, Equatable {
+        case none
+        /// The app records a dictation the keyboard did not start (record
+        /// button, Siri): the mic stops it and the keyboard types the result.
+        case appRecording(UUID)
+        /// The mic is disabled (an Action Button recording, or processing);
+        /// show the message.
+        case blocked(String)
     }
 
     public enum Haptic: Sendable, Equatable { case start, stop }
@@ -113,6 +128,8 @@ public struct KeyboardDictation: Sendable, Equatable {
     /// After a command went unanswered, the next start opens the app even
     /// if `app-state.json` claims standby (a killed app leaves it behind).
     public private(set) var distrustsStandby = false
+    /// The shared activity, as it affects the mic.
+    public private(set) var external: External = .none
     /// Sessions this keyboard finished or abandoned: never adopted again.
     private var settledSessions: [UUID] = []
 
@@ -153,12 +170,37 @@ public struct KeyboardDictation: Sendable, Equatable {
         case .userEdited:
             lastInsertion = nil
             return []
+
+        case let .activityChanged(activity, now):
+            switch activity?.keyboardRoute(now: now) ?? .openApp {
+            case .openApp, .command:
+                external = .none
+            case .stop(let session):
+                external = session == phase.sessionID ? .none : .appRecording(session)
+            case .blocked(let message):
+                external = .blocked(message)
+            }
+            return []
         }
     }
 
     private mutating func micTapped(newSessionID: UUID, modeID: UUID, appAcceptsCommands: Bool, now: Date) -> [Effect] {
         switch phase {
         case .idle, .inserted, .failed, .cancelled:
+            switch external {
+            case .blocked:
+                // Shortcuts owns the microphone, or a job is running.
+                return []
+            case .appRecording(let session):
+                // Stop the app's recording and follow it like our own.
+                lastInsertion = nil
+                settledSessions.removeAll { $0 == session }
+                external = .none
+                phase = .stopping(session, since: now)
+                return [.sendCommand(HandoffCommand(action: .stop, sessionID: session, createdAt: now)), .haptic(.stop)]
+            case .none:
+                break
+            }
             lastInsertion = nil
             if appAcceptsCommands && !distrustsStandby {
                 phase = .waitingForApp(newSessionID, route: .command, since: now)

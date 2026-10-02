@@ -79,6 +79,8 @@ final class StubRecorder: AudioRecording {
     var samples: [Float] = Signal.tone(seconds: 2)
     private var url: URL?
 
+    var recordedDuration: TimeInterval { isRecording ? Double(samples.count) / 16_000 : 0 }
+
     func start(writingTo url: URL) async throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         self.url = url

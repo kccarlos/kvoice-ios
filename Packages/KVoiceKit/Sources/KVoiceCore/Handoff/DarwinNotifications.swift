@@ -18,6 +18,8 @@ public struct DarwinNotificationName: RawRepresentable, Sendable, Hashable {
     public static let handoffResult = Self(rawValue: prefix + "handoff.result")
     /// The app's background-recording availability changed.
     public static let handoffAppState = Self(rawValue: prefix + "handoff.appState")
+    /// The shared `DictationActivity` changed (who owns the microphone).
+    public static let dictationActivity = Self(rawValue: prefix + "activity")
     /// Modes were added, edited, deleted or reordered.
     public static let modesChanged = Self(rawValue: prefix + "modes.changed")
     /// The active mode changed.

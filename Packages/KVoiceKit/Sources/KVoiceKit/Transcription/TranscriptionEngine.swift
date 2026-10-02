@@ -95,6 +95,13 @@ public final class TranscriptionEngineFactory: TranscriptionEngineProviding {
         self.whisperEngine = WhisperKitEngine(models: whisperModels)
     }
 
+    /// Whether a Whisper selection's model is loaded in this process.
+    public func isWhisperModelLoaded(_ selection: TranscriptionEngineSelection) async -> Bool {
+        guard selection.kind == .whisper else { return false }
+        let model = selection.whisperModelID.flatMap(WhisperModel.model(id:)) ?? .base
+        return await whisperEngine.isLoaded(model)
+    }
+
     public func engine(for selection: TranscriptionEngineSelection) throws -> any TranscriptionEngine {
         switch selection.kind {
         case .appleSpeech:
