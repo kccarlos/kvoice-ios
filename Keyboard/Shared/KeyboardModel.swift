@@ -80,9 +80,12 @@ final class KeyboardModel {
 
     func refreshTraits() {
         guard let host else { return }
-        hasFullAccess = host.hasFullAccess
-        showsGlobeKey = host.needsInputModeSwitchKey
-        returnKeyType = host.returnKeyType ?? .default
+        // Assign only on change: every @Observable write invalidates the
+        // view, and this runs on each layout pass.
+        if hasFullAccess != host.hasFullAccess { hasFullAccess = host.hasFullAccess }
+        if showsGlobeKey != host.needsInputModeSwitchKey { showsGlobeKey = host.needsInputModeSwitchKey }
+        let returnKey = host.returnKeyType ?? .default
+        if returnKeyType != returnKey { returnKeyType = returnKey }
         updateUndo()
     }
 
@@ -209,9 +212,10 @@ final class KeyboardModel {
     }
 
     private func updateUndo() {
-        canUndo = dictation.lastInsertion.flatMap {
+        let undoable = dictation.lastInsertion.flatMap {
             KeyboardDictation.undoDeletionCount(inserted: $0, contextBeforeInput: host?.documentContextBeforeInput)
         } != nil
+        if canUndo != undoable { canUndo = undoable }
     }
 
     // MARK: Keys
