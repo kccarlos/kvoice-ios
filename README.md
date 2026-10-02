@@ -22,8 +22,10 @@ Status: early development. Builds go to TestFlight on every push to `main`.
 - FR-10 On-device transcription with Apple's speech framework (no download).
 - FR-11 On-device Whisper models (downloadable), 100+ languages, with
   optional translation to English.
-- FR-12 Cloud transcription with the user's own key through any
-  OpenAI-compatible transcription endpoint (OpenAI, Groq, custom URL).
+- FR-12 Cloud transcription with the user's own key: any OpenAI-compatible
+  transcription endpoint (OpenAI, Groq, custom URL), Google AI Studio
+  (Gemini API) or Google Vertex AI (express-mode key or a project and
+  location endpoint).
 - FR-13 Language: automatic detection or a fixed language per mode.
 
 ### AI formatting (modes)
@@ -33,8 +35,8 @@ Status: early development. Builds go to TestFlight on every push to `main`.
   model, and transcription engine, saved and reused.
 - FR-22 Switch the active mode from the keyboard and from the app.
 - FR-23 AI providers: Apple Intelligence (on-device Foundation Models), or
-  bring your own key for OpenAI, Anthropic, Google Gemini, Groq, OpenRouter,
-  or any OpenAI-compatible endpoint.
+  bring your own key for OpenAI, Anthropic, Google AI Studio (Gemini API),
+  Google Vertex AI, Groq, OpenRouter, or any OpenAI-compatible endpoint.
 - FR-24 Plain dictation works with no AI and no network.
 
 ### History
