@@ -35,6 +35,8 @@
 	<false/>
 	<key>KVoiceAppGroup</key>
 	<string>$(KVOICE_APP_GROUP)</string>
+	<key>KVoiceKeychainGroup</key>
+	<string>$(AppIdentifierPrefix)$(KVOICE_KEYCHAIN_GROUP)</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>KVoice records your voice only while you dictate, to turn it into text.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

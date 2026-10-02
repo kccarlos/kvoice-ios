@@ -192,4 +192,17 @@ import Testing
         #expect(try secrets.apiKey(for: .openAI) == nil)
         #expect(KeychainStore().service(for: .groq).hasSuffix(".groq"))
     }
+
+    @Test func keychainAccessGroupNeedsATeamPrefix() {
+        let group = "ABCDE12345.io.github.kccarlos.kvoice.ios.shared"
+        #expect(KeychainStore.accessGroup(fromInfoValue: group) == group)
+        // Unsigned builds: the prefix expands to nothing or stays literal.
+        #expect(KeychainStore.accessGroup(fromInfoValue: "io.github.kccarlos.kvoice.ios.shared") == nil)
+        #expect(KeychainStore.accessGroup(fromInfoValue: ".io.github.kccarlos.kvoice.ios.shared") == nil)
+        #expect(KeychainStore.accessGroup(fromInfoValue: "$(AppIdentifierPrefix)io.github.kccarlos.kvoice.ios.shared") == nil)
+        #expect(KeychainStore.accessGroup(fromInfoValue: nil) == nil)
+        #expect(KeychainStore.shared(bundle: Bundle(for: BundleToken.self)).accessGroup == nil)
+    }
 }
+
+private final class BundleToken {}

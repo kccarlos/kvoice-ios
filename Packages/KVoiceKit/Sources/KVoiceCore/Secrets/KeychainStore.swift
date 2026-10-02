@@ -41,29 +41,65 @@ public struct KeychainStore: SecretStore {
         self.accessGroup = accessGroup
     }
 
+    /// The Info.plist key holding the shared access group,
+    /// `$(AppIdentifierPrefix)io.github.kccarlos.kvoice.ios.shared`.
+    public static let accessGroupInfoKey = "KVoiceKeychainGroup"
+
+    /// The store the app and the keyboard share: the access group from
+    /// Info.plist when it is a real, team-prefixed group, else the default
+    /// group (unsigned simulator builds).
+    public static func shared(bundle: Bundle = .main) -> KeychainStore {
+        KeychainStore(accessGroup: accessGroup(fromInfoValue: bundle.object(forInfoDictionaryKey: accessGroupInfoKey) as? String))
+    }
+
+    /// A usable access group from an Info.plist value, or nil when the
+    /// build had no team (`$(AppIdentifierPrefix)` empty or unexpanded).
+    public static func accessGroup(fromInfoValue value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespaces), !value.contains("$("),
+              let dot = value.firstIndex(of: "."), dot != value.startIndex else { return nil }
+        let prefix = value[..<dot]
+        let suffix = value[value.index(after: dot)...]
+        guard prefix.count == 10, prefix.allSatisfy({ $0.isASCII && ($0.isUppercase || $0.isNumber) }),
+              !suffix.isEmpty else { return nil }
+        return value
+    }
+
     func service(for provider: ProviderKind) -> String {
         "\(servicePrefix).\(provider.rawValue)"
     }
 
-    private func baseQuery(for provider: ProviderKind) -> [String: Any] {
+    private func baseQuery(for provider: ProviderKind, group: String?) -> [String: Any] {
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service(for: provider),
             kSecAttrAccount as String: Self.account,
             kSecUseDataProtectionKeychain as String: true
         ]
-        if let accessGroup {
-            query[kSecAttrAccessGroup as String] = accessGroup
+        if let group {
+            query[kSecAttrAccessGroup as String] = group
         }
         return query
     }
 
+    /// Runs a Keychain operation with the access group, and again without
+    /// it when the binary lacks the entitlement (unsigned builds).
+    private func withGroupFallback(_ operation: (_ group: String?) -> OSStatus) -> OSStatus {
+        let status = operation(accessGroup)
+        if status == errSecMissingEntitlement, accessGroup != nil {
+            return operation(nil)
+        }
+        return status
+    }
+
     public func apiKey(for provider: ProviderKind) throws -> String? {
-        var query = baseQuery(for: provider)
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
         var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        let status = withGroupFallback { group in
+            var query = baseQuery(for: provider, group: group)
+            query[kSecReturnData as String] = true
+            query[kSecMatchLimit as String] = kSecMatchLimitOne
+            item = nil
+            return SecItemCopyMatching(query as CFDictionary, &item)
+        }
         switch status {
         case errSecSuccess:
             guard let data = item as? Data, let key = String(data: data, encoding: .utf8) else {
@@ -80,9 +116,10 @@ public struct KeychainStore: SecretStore {
     /// Stores `key`, or deletes the item when `key` is nil or empty.
     public func setAPIKey(_ key: String?, for provider: ProviderKind) throws {
         let trimmed = key?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let query = baseQuery(for: provider)
         guard !trimmed.isEmpty else {
-            let status = SecItemDelete(query as CFDictionary)
+            let status = withGroupFallback { group in
+                SecItemDelete(baseQuery(for: provider, group: group) as CFDictionary)
+            }
             guard status == errSecSuccess || status == errSecItemNotFound else {
                 throw KeychainError.unexpectedStatus(status)
             }
@@ -92,9 +129,13 @@ public struct KeychainStore: SecretStore {
             kSecValueData as String: Data(trimmed.utf8),
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
         ]
-        var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if status == errSecItemNotFound {
-            status = SecItemAdd(query.merging(attributes) { $1 } as CFDictionary, nil)
+        let status = withGroupFallback { group in
+            let query = baseQuery(for: provider, group: group)
+            var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+            if status == errSecItemNotFound {
+                status = SecItemAdd(query.merging(attributes) { $1 } as CFDictionary, nil)
+            }
+            return status
         }
         guard status == errSecSuccess else { throw KeychainError.unexpectedStatus(status) }
     }

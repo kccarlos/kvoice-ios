@@ -39,6 +39,8 @@ targets:
       properties:
         com.apple.security.application-groups:
           - $(KVOICE_APP_GROUP)
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)$(KVOICE_KEYCHAIN_GROUP)
     info:
       path: App/Info.plist
       properties:
@@ -54,6 +56,7 @@ targets:
         NSMicrophoneUsageDescription: KVoice records your voice only while you dictate, to turn it into text.
         NSSpeechRecognitionUsageDescription: KVoice uses on-device speech recognition to transcribe your dictation.
         KVoiceAppGroup: $(KVOICE_APP_GROUP)
+        KVoiceKeychainGroup: $(AppIdentifierPrefix)$(KVOICE_KEYCHAIN_GROUP)
         CFBundleURLTypes:
           - CFBundleURLName: io.github.kccarlos.kvoice.ios
             CFBundleURLSchemes: [kvoice]
@@ -84,6 +87,8 @@ targets:
       properties:
         com.apple.security.application-groups:
           - $(KVOICE_APP_GROUP)
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)$(KVOICE_KEYCHAIN_GROUP)
     info:
       path: Keyboard/Info.plist
       properties:
@@ -91,6 +96,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         KVoiceAppGroup: $(KVOICE_APP_GROUP)
+        KVoiceKeychainGroup: $(AppIdentifierPrefix)$(KVOICE_KEYCHAIN_GROUP)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.keyboard-service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController

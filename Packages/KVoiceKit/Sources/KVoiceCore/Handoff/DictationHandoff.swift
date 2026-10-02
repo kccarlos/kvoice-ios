@@ -40,6 +40,13 @@ public struct HandoffCommand: Codable, Sendable, Hashable {
         self.modeID = modeID
         self.createdAt = createdAt
     }
+
+    /// Commands older than this are ignored (a stale file from an earlier run).
+    public static let maximumAge: TimeInterval = 30
+
+    public func isExpired(now: Date = .now) -> Bool {
+        now.timeIntervalSince(createdAt) > Self.maximumAge
+    }
 }
 
 /// The app's progress on a handoff session, read by the keyboard.
@@ -88,10 +95,22 @@ public struct HandoffAppState: Codable, Sendable, Hashable {
     /// will react to `HandoffCommand`s.
     public var isListeningForCommands: Bool
     public var updatedAt: Date
+    /// When the app stops listening on its own (the keep-alive window ends).
+    /// A file left behind by a terminated app reads as unavailable after it.
+    public var expiresAt: Date?
 
-    public init(isListeningForCommands: Bool, updatedAt: Date = .now) {
+    public init(isListeningForCommands: Bool, updatedAt: Date = .now, expiresAt: Date? = nil) {
         self.isListeningForCommands = isListeningForCommands
         self.updatedAt = updatedAt
+        self.expiresAt = expiresAt
+    }
+
+    /// Whether the keyboard can send a `HandoffCommand` instead of opening
+    /// the app.
+    public func acceptsCommands(now: Date = .now) -> Bool {
+        guard isListeningForCommands else { return false }
+        guard let expiresAt else { return true }
+        return expiresAt > now
     }
 }
 
@@ -123,6 +142,31 @@ public struct DictationHandoff: Sendable {
         components.host = "dictate"
         components.queryItems = [URLQueryItem(name: "session", value: sessionID.uuidString)]
         return components.url!
+    }
+
+    /// `kvoice://dictate` without a session: start a dictation in the app
+    /// itself (widgets, Control Center, Shortcuts). `modeID` selects a mode.
+    public static func appDictationURL(modeID: UUID? = nil) -> URL {
+        var components = URLComponents()
+        components.scheme = "kvoice"
+        components.host = "dictate"
+        if let modeID {
+            components.queryItems = [URLQueryItem(name: "mode", value: modeID.uuidString)]
+        }
+        return components.url!
+    }
+
+    /// Whether a URL is any `kvoice://dictate` URL.
+    public static func isDictationURL(_ url: URL) -> Bool {
+        url.scheme == "kvoice" && url.host == "dictate"
+    }
+
+    /// The mode identifier in a `kvoice://dictate?mode=` URL.
+    public static func modeID(from url: URL) -> UUID? {
+        guard isDictationURL(url),
+              let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "mode" })?.value else { return nil }
+        return UUID(uuidString: value)
     }
 
     /// The session identifier in a `kvoice://dictate?session=` URL.

@@ -3,4 +3,5 @@
 MARKETING_VERSION = 0.1.0
 CURRENT_PROJECT_VERSION = 1
 KVOICE_APP_GROUP = group.io.github.kccarlos.kvoice.ios
+KVOICE_KEYCHAIN_GROUP = io.github.kccarlos.kvoice.ios.shared
 #include? "Local.xcconfig"

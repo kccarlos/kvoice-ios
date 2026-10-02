@@ -70,6 +70,33 @@ import Testing
         #expect(DictationHandoff.sessionID(from: URL(string: "kvoice://settings")!) == nil)
     }
 
+    @Test func appStateExpiry() throws {
+        let state = HandoffAppState(isListeningForCommands: true, updatedAt: fixedDate, expiresAt: fixedDate.addingTimeInterval(300))
+        #expect(state.acceptsCommands(now: fixedDate.addingTimeInterval(299)))
+        #expect(!state.acceptsCommands(now: fixedDate.addingTimeInterval(301)))
+        #expect(!HandoffAppState(isListeningForCommands: false, updatedAt: fixedDate).acceptsCommands(now: fixedDate))
+        // Files written before `expiresAt` existed still decode.
+        let legacy = #"{"isListeningForCommands":true,"updatedAt":"2027-01-15T08:00:00Z"}"#
+        let decoded = try DictationHandoff.decoder().decode(HandoffAppState.self, from: Data(legacy.utf8))
+        #expect(decoded.expiresAt == nil && decoded.acceptsCommands(now: fixedDate))
+    }
+
+    @Test func commandExpiry() {
+        let command = HandoffCommand(action: .start, sessionID: UUID(), createdAt: fixedDate)
+        #expect(!command.isExpired(now: fixedDate.addingTimeInterval(10)))
+        #expect(command.isExpired(now: fixedDate.addingTimeInterval(HandoffCommand.maximumAge + 1)))
+    }
+
+    @Test func appDictationURL() throws {
+        let plain = DictationHandoff.appDictationURL()
+        #expect(plain.absoluteString == "kvoice://dictate")
+        #expect(DictationHandoff.isDictationURL(plain))
+        #expect(DictationHandoff.sessionID(from: plain) == nil)
+        let withMode = DictationHandoff.appDictationURL(modeID: Mode.BuiltInID.email)
+        #expect(DictationHandoff.modeID(from: withMode) == Mode.BuiltInID.email)
+        #expect(!DictationHandoff.isDictationURL(try #require(URL(string: "kvoice://settings"))))
+    }
+
     @Test func missingFilesReadAsNil() throws {
         let directory = try TempDirectory()
         defer { directory.cleanUp() }
