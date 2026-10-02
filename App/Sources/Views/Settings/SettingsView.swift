@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage(AppPreferences.autoCopyKey, store: AppPreferences.store) private var autoCopy = true
     @AppStorage(AppPreferences.keepAliveMinutesKey, store: AppPreferences.store) private var keepAliveMinutes = 5
     @State private var confirmingDeleteHistory = false
+    @State private var showsActionButton = AppPreferences.initialScreen == "actionButton"
 
     var body: some View {
         @Bindable var settings = model.settings
@@ -59,12 +60,23 @@ struct SettingsView: View {
                     Task { await model.applyRetention() }
                 }
 
-                Section("Keyboard") {
+                Section("Dictate anywhere") {
                     NavigationLink {
                         KeyboardSetupView()
                     } label: {
                         SettingsRow(title: "Set up the KVoice keyboard", detail: nil, icon: "keyboard", color: .gray)
                     }
+                    Button {
+                        showsActionButton = true
+                    } label: {
+                        HStack {
+                            SettingsRow(title: "Action Button", detail: nil, icon: "button.vertical.right.press", color: .orange)
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .foregroundStyle(.primary)
                 }
 
                 Section("Privacy") {
@@ -82,6 +94,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .navigationDestination(isPresented: $showsActionButton) { ActionButtonSetupView() }
             .confirmationDialog("Delete all history?", isPresented: $confirmingDeleteHistory, titleVisibility: .visible) {
                 Button("Delete All", role: .destructive) {
                     Task {

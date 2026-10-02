@@ -37,6 +37,13 @@ enum AppPreferences {
         return URL(string: launchArguments[index + 1])
     }
 
+    /// `-kvoiceScreen actionButton`: open a Settings screen (screenshots).
+    static var initialScreen: String? {
+        guard let index = launchArguments.firstIndex(of: "-kvoiceScreen"),
+              launchArguments.indices.contains(index + 1) else { return nil }
+        return launchArguments[index + 1]
+    }
+
     static var initialTab: AppTab? {
         guard let index = launchArguments.firstIndex(of: "-kvoiceTab"),
               launchArguments.indices.contains(index + 1) else { return nil }

@@ -84,7 +84,7 @@ private struct KeyboardDictationPanel: View {
                     }
                 }
                 Spacer(minLength: 8)
-                KeyboardMicButton(phase: model.phase, action: model.micTapped)
+                KeyboardMicButton(phase: model.phase, external: model.dictation.external, action: model.micTapped)
                 Spacer(minLength: 8)
                 sideSlot {
                     if model.canUndo && !model.phase.isActive {
@@ -93,7 +93,7 @@ private struct KeyboardDictationPanel: View {
                 }
             }
             .padding(.horizontal, 12)
-            KeyboardStatusLine(phase: model.phase, modeName: model.activeMode?.name)
+            KeyboardStatusLine(phase: model.phase, external: model.dictation.external, modeName: model.activeMode?.name)
         }
     }
 
@@ -106,11 +106,20 @@ private struct KeyboardDictationPanel: View {
 
 private struct KeyboardMicButton: View {
     let phase: KeyboardDictation.Phase
+    let external: KeyboardDictation.External
     let action: () -> Void
     @State private var pulse = false
 
     private var isRecording: Bool {
         if case .recording = phase { return true }
+        // The app records a dictation started elsewhere: the mic stops it.
+        if !phase.isActive, case .appRecording = external { return true }
+        return false
+    }
+
+    /// Another owner holds the microphone, or a job runs.
+    private var isBlocked: Bool {
+        if !phase.isActive, case .blocked = external { return true }
         return false
     }
 
@@ -148,7 +157,7 @@ private struct KeyboardMicButton: View {
             .contentShape(Circle())
         }
         .buttonStyle(KeyboardPressStyle())
-        .disabled(isProcessing)
+        .disabled(isProcessing || isBlocked)
         .accessibilityLabel(isRecording ? "Finish dictation" : "Dictate")
         .onChange(of: isRecording, initial: true) { _, recording in
             pulse = false
@@ -166,13 +175,14 @@ private struct KeyboardMicButton: View {
 
     private var fill: Color {
         if isRecording { return .red }
-        if isProcessing { return Color(uiColor: .systemGray) }
+        if isProcessing || isBlocked { return Color(uiColor: .systemGray) }
         return .accentColor
     }
 }
 
 private struct KeyboardStatusLine: View {
     let phase: KeyboardDictation.Phase
+    let external: KeyboardDictation.External
     let modeName: String?
 
     var body: some View {
@@ -189,12 +199,20 @@ private struct KeyboardStatusLine: View {
     }
 
     private var isError: Bool {
+        if !phase.isActive, external != .none { return false }
         if case .failed = phase { return true }
         return false
     }
 
     private var text: String {
-        switch phase {
+        if !phase.isActive {
+            switch external {
+            case .blocked(let message): return message
+            case .appRecording: return "Recording in KVoice… tap to finish"
+            case .none: break
+            }
+        }
+        return switch phase {
         case .idle:
             if let modeName { "Ready · \(modeName)" } else { "Ready" }
         case .waitingForApp(_, .openedApp, _): "Opening KVoice…"

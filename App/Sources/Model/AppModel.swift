@@ -21,6 +21,7 @@ final class AppModel {
     let whisperModels: WhisperModelManager
     let assets: AssetManager
     let pipeline: DictationPipeline
+    let engineFactory: TranscriptionEngineFactory
     @ObservationIgnored private(set) var handoff: HandoffCoordinator!
 
     var selectedTab: AppTab = AppPreferences.initialTab ?? .home
@@ -30,6 +31,10 @@ final class AppModel {
     private(set) var historyRevision = 0
     /// A transient message for the Home screen.
     var notice: String?
+
+    /// Transcribe Audio jobs running in this process (not to be resumed).
+    @ObservationIgnored var runningJobIDs: Set<UUID> = []
+    @ObservationIgnored private var isResumingJobs = false
 
     @ObservationIgnored private var darwinObservers: [DarwinNotificationObserver] = []
     @ObservationIgnored private var systemObservers: [any NSObjectProtocol] = []
@@ -48,9 +53,11 @@ final class AppModel {
         self.recorder = recorder
         self.whisperModels = whisperModels
         self.assets = AssetManager(whisper: whisperModels)
+        let engineFactory = TranscriptionEngineFactory(secrets: secrets, whisperModels: whisperModels)
+        self.engineFactory = engineFactory
         self.pipeline = DictationPipeline(
             recorder: recorder,
-            engines: TranscriptionEngineFactory(secrets: secrets, whisperModels: whisperModels),
+            engines: engineFactory,
             formatters: TextFormatterFactory(secrets: secrets),
             history: history,
             settings: { settings.settings }
@@ -58,7 +65,7 @@ final class AppModel {
         self.handoff = HandoffCoordinator(model: self)
         pipeline.phaseHandler = { [weak self] phase in self?.phaseChanged(phase) }
         recorder.engineStoppedHandler = { [weak self] in
-            self?.handleAudioLoss(message: "Recording stopped because the audio route changed.")
+            self?.handleAudioLoss()
         }
         observeOtherProcess()
         observeAudioSession()
@@ -69,20 +76,32 @@ final class AppModel {
 
     var isRecording: Bool { pipeline.phase == .recording }
 
-    func startDictation(modeID: UUID? = nil) async {
+    /// Starts recording in the app (record button, `DictateIntent`,
+    /// `kvoice://dictate`). Shows a notice instead when the microphone is
+    /// owned elsewhere (an Action Button recording) or a job is running.
+    func startDictation(modeID: UUID? = nil, source: DictationActivity.Source = .app) async {
         guard !pipeline.isBusy else { return }
         if let modeID, modes.mode(id: modeID) != nil {
             try? modes.setActiveMode(id: modeID)
         }
-        notice = nil
-        recorder.deactivatesSessionOnStop = !handoff.isStandingBy
-        try? await pipeline.startRecording(mode: modes.activeMode)
+        notice = await handoff.requestAppRecording(source: source, mode: modes.activeMode)
     }
 
     @discardableResult
     func stopDictation() async -> DictationResult? {
         guard pipeline.isRecording else { return nil }
-        return try? await pipeline.stopAndProcess()
+        return await handoff.stopAppRecording()
+    }
+
+    /// Runs `work` with background execution time requested, so a job
+    /// started in the foreground (or by an interruption) can finish.
+    func withBackgroundTime<T>(_ name: String, _ work: () async throws -> T) async rethrows -> T {
+        let application = UIApplication.shared
+        let identifier = application.beginBackgroundTask(withName: name)
+        defer {
+            if identifier != .invalid { application.endBackgroundTask(identifier) }
+        }
+        return try await work()
     }
 
     func cancelDictation() {
@@ -131,6 +150,16 @@ final class AppModel {
 
     func historyChanged() { historyRevision += 1 }
 
+    /// The app became active: finish Action Button jobs the system stopped.
+    func appBecameActive() {
+        guard !isResumingJobs else { return }
+        isResumingJobs = true
+        Task {
+            await resumePendingJobs()
+            isResumingJobs = false
+        }
+    }
+
     func applyRetention() async {
         _ = try? await history?.applyRetention(settings.settings.retention)
         historyRevision += 1
@@ -142,6 +171,7 @@ final class AppModel {
             historyRevision += 1
             if AppPreferences.autoCopy { UIPasteboard.general.string = result.text }
         }
+        if phase == .recording { notice = nil }
         handoff.phaseChanged(phase, result: pipeline.lastResult)
     }
 
@@ -177,14 +207,14 @@ final class AppModel {
             let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
             guard raw.flatMap(AVAudioSession.InterruptionType.init(rawValue:)) == .began else { return }
             MainActor.assumeIsolated {
-                self?.handleAudioLoss(message: "Recording was interrupted by another app or a call.")
+                self?.handleAudioLoss()
             }
         })
         systemObservers.append(center.addObserver(
             forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.handleAudioLoss(message: "Recording stopped because the audio system restarted.")
+                self?.handleAudioLoss()
             }
         })
         systemObservers.append(center.addObserver(
@@ -194,14 +224,14 @@ final class AppModel {
         })
     }
 
-    /// The microphone was taken away: end the recording, report it, and
-    /// leave standby (the system stopped the engine).
-    private func handleAudioLoss(message: String) {
-        if pipeline.isRecording {
-            handoff.recordingWillFail(message: message)
-            pipeline.cancel()
-            notice = message
+    /// The microphone was taken away (a call, Siri, another app such as
+    /// Shortcuts' Record Audio, a route change or a media reset): process
+    /// what was recorded if it is at least 1 s long, otherwise cancel; end
+    /// standby quietly.
+    private func handleAudioLoss() {
+        if pipeline.isRecording, !InterruptionSalvage.shouldProcess(recordedDuration: pipeline.recordedDuration) {
+            notice = "Recording was interrupted."
         }
-        handoff.endStandby()
+        handoff.audioInterrupted()
     }
 }

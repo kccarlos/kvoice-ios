@@ -38,6 +38,7 @@ final class KeyboardModel {
     @ObservationIgnored private var modeStore: ModeStore?
     @ObservationIgnored private var observers: [DarwinNotificationObserver] = []
     @ObservationIgnored private var ticker: Task<Void, Never>?
+    @ObservationIgnored private var heartbeat: Task<Void, Never>?
 
     init(
         host: any KeyboardHost,
@@ -62,10 +63,13 @@ final class KeyboardModel {
         if observers.isEmpty {
             observers = [
                 observe(.handoffResult) { $0.readMailbox() },
+                observe(.dictationActivity) { $0.readActivity() },
                 observe(.modesChanged) { $0.reloadModes() },
                 observe(.activeModeChanged) { $0.reloadModes() }
             ]
         }
+        startHeartbeat()
+        readActivity()
         readMailbox()
     }
 
@@ -76,6 +80,24 @@ final class KeyboardModel {
         observers = []
         ticker?.cancel()
         ticker = nil
+        if heartbeat != nil {
+            heartbeat?.cancel()
+            heartbeat = nil
+            try? mailbox.writeKeyboardPresence(nil)
+        }
+    }
+
+    /// Tells the app the keyboard is on screen (a shortcut result is then
+    /// typed here), about every 2 s. Full Access only.
+    private func startHeartbeat() {
+        guard hasFullAccess, heartbeat == nil else { return }
+        heartbeat = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                try? self.mailbox.writeKeyboardPresence(.now)
+                try? await Task.sleep(for: .seconds(KeyboardPresence.heartbeatInterval))
+            }
+        }
     }
 
     func refreshTraits() {
@@ -128,7 +150,10 @@ final class KeyboardModel {
     func micTapped() {
         guard hasFullAccess else { return }
         reloadModes()
-        let acceptsCommands = mailbox.readAppState()?.acceptsCommands() == true
+        let now = Date.now
+        let activity = mailbox.readActivity()
+        send(.activityChanged(activity, now: now))
+        let acceptsCommands = activity?.keyboardRoute(now: now) == .command
         send(.micTapped(
             newSessionID: UUID(),
             modeID: activeModeID ?? Mode.BuiltInID.dictation,
@@ -143,6 +168,11 @@ final class KeyboardModel {
 
     func undoTapped() {
         send(.undoTapped(contextBeforeInput: host?.documentContextBeforeInput))
+    }
+
+    private func readActivity() {
+        guard hasFullAccess else { return }
+        send(.activityChanged(mailbox.readActivity(), now: .now))
     }
 
     private func readMailbox() {
@@ -195,7 +225,9 @@ final class KeyboardModel {
     /// While a session is in flight, re-read the mailbox and check
     /// timeouts every half second (Darwin posts can be missed or coalesce).
     private func updateTicker() {
-        guard dictation.phase.isActive else {
+        // Also while another owner holds the mic: its lease can lapse
+        // without a notification.
+        guard dictation.phase.isActive || dictation.external != .none else {
             ticker?.cancel()
             ticker = nil
             return
@@ -205,6 +237,7 @@ final class KeyboardModel {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(500))
                 guard !Task.isCancelled, let self else { return }
+                self.readActivity()
                 self.readMailbox()
                 self.send(.tick(now: .now))
             }

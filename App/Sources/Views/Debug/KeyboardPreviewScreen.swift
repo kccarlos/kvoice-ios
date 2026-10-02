@@ -5,11 +5,11 @@ import UIKit
 
 /// Debug-only host for the keyboard UI, for simulator screenshots (a
 /// keyboard extension can't be enabled from a script):
-/// `-kvoiceKeyboardPreview ready|noFullAccess|recording`. Uses a scratch
+/// `-kvoiceKeyboardPreview ready|noFullAccess|recording|shortcutRecording`. Uses a scratch
 /// mailbox and mode store, never the shared ones.
 struct KeyboardPreviewScreen: View {
     enum State: String {
-        case ready, noFullAccess, recording
+        case ready, noFullAccess, recording, shortcutRecording
     }
 
     static var requestedState: State? {
@@ -30,6 +30,11 @@ struct KeyboardPreviewScreen: View {
         defaults.set(Mode.BuiltInID.cleanUp.uuidString, forKey: "activeModeID")
         if state == .recording {
             try? mailbox.writeResult(HandoffResult(sessionID: UUID(), status: .recording))
+        }
+        if state == .shortcutRecording {
+            var reducer = DictationActivityReducer()
+            _ = reducer.handle(.beginShortcut(newID: UUID(), modeID: Mode.BuiltInID.cleanUp, now: .now))
+            try? mailbox.writeActivity(reducer.activity)
         }
         let host = PreviewKeyboardHost(hasFullAccess: state != .noFullAccess)
         _host = .init(initialValue: host)

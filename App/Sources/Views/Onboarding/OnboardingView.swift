@@ -7,7 +7,7 @@ struct OnboardingView: View {
     @Environment(AppModel.self) private var model
     let onFinish: () -> Void
 
-    enum Step: Int, CaseIterable { case welcome, microphone, engine, ai, keyboard }
+    enum Step: Int, CaseIterable { case welcome, microphone, engine, ai, keyboard, actionButton }
     @State private var step: Step = .welcome
     @State private var micGranted = AudioRecorder.hasPermission
 
@@ -104,6 +104,17 @@ struct OnboardingView: View {
                         .buttonStyle(.glass)
                 }
             }
+        case .actionButton:
+            OnboardingPage(
+                icon: "button.vertical.right.press", title: "Action Button (optional)",
+                text: "Dictate from any app without switching to KVoice. You can set this up later in Settings › Action Button."
+            ) {
+                VStack(alignment: .leading, spacing: 14) {
+                    ActionButtonExplainer()
+                    ActionButtonSetupSteps()
+                }
+                .onAppear { JobNotifier.requestAuthorization() }
+            }
         }
     }
 
@@ -114,7 +125,7 @@ struct OnboardingView: View {
                     .buttonStyle(.glass)
             }
             Spacer()
-            Button(step == .keyboard ? "Start Dictating" : "Continue") {
+            Button(step == Step.allCases.last ? "Start Dictating" : "Continue") {
                 if let next = Step(rawValue: step.rawValue + 1) { step = next } else { onFinish() }
             }
             .buttonStyle(.glassProminent)

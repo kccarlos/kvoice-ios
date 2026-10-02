@@ -2,8 +2,9 @@ import AppIntents
 import Foundation
 
 /// Opens KVoice and starts dictating; if KVoice is already recording, it
-/// stops and processes instead (so one Action Button press starts and the
-/// next one finishes). Compiled into the app and the widget extension; it
+/// stops and processes instead (so one press starts and the next one
+/// finishes). Follows the shared `DictationActivity`: it does not start
+/// while an Action Button shortcut owns the microphone. Compiled into the app and the widget extension; it
 /// always runs in the app.
 struct DictateIntent: AppIntent {
     static var title: LocalizedStringResource { "Dictate with KVoice" }
@@ -33,7 +34,8 @@ struct DictateIntent: AppIntent {
         if model.pipeline.isRecording {
             await model.stopDictation()
         } else {
-            await model.startDictation(modeID: mode?.id)
+            // Refused with a notice while the Action Button records.
+            await model.startDictation(modeID: mode?.id, source: .intent)
         }
         #endif
         return .result()

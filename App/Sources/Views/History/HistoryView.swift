@@ -101,8 +101,18 @@ struct HistoryRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(record.formattedText)
-                .lineLimit(2)
+            switch record.status {
+            case .done:
+                Text(record.formattedText)
+                    .lineLimit(2)
+            case .pending:
+                Label("Waiting to be transcribed", systemImage: "hourglass")
+                    .foregroundStyle(.secondary)
+            case .failed:
+                Label("Not transcribed: \(record.failureMessage ?? "failed")", systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                    .lineLimit(2)
+            }
             HStack(spacing: 6) {
                 Text(record.modeName)
                 Text("·")

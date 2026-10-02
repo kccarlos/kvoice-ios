@@ -49,11 +49,11 @@ iOS keyboards cannot record, so the keyboard asks the app. Files live in
    (`HandoffCommand` `stop` / `cancel` with the session id).
 5. Standby: after a keyboard dictation the app keeps the input engine
    running for the "Keep listening for the keyboard" window (default
-   5 min) and writes `app-state.json` (`HandoffAppState`,
-   `isListeningForCommands`, `expiresAt`). While
-   `acceptsCommands()` is true the keyboard can send `start` (with a new
-   session id and mode) instead of opening the app. Standby ends on expiry,
-   on an audio interruption, or when the setting is off.
+   5 min); the shared `DictationActivity` is then `standby(expiresAt)`
+   (projected to `app-state.json`). While it holds, the keyboard can send
+   `start` (with a new session id and mode) instead of opening the app.
+   Standby ends on expiry, on an audio interruption, when an Action Button
+   shortcut begins, or when the setting is off.
 
 The keyboard's side is the pure state machine `KeyboardDictation`
 (KVoiceCore, unit-tested); `Keyboard/Shared/KeyboardModel` runs it against
@@ -73,6 +73,19 @@ iOS keeps an app with the `audio` background mode alive only while audio
 I/O runs, and does not let it start recording from the background; standby
 therefore keeps the microphone input running (the system microphone
 indicator stays on). This must be validated on a device.
+
+## Shared dictation state and the Action Button
+
+`DictationActivity` (`Handoff/activity.json`) is the single authority on who
+owns the microphone, for every entry point: keyboard, record button,
+`DictateIntent` and the Action Button shortcut (`BeginDictationIntent`, the
+Shortcuts app's Record Audio, `TranscribeAudioIntent`). The app writes it
+through the pure `DictationActivityReducer`; `app-state.json` is a projection
+of it. Transcribe Audio jobs save the audio as a pending History record,
+convert it to 16 kHz mono, and run on the pipeline's serial job queue under a
+background budget. The keyboard writes a heartbeat (`keyboard.json`) so the
+app knows whether to offer it a result. The full transition table is in
+[DictationStates.md](DictationStates.md).
 
 `kvoice://dictate` without a session (optionally `?mode=<id>`) starts a
 dictation in the app itself; widgets and Control Center use it or

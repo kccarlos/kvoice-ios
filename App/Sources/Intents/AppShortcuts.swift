@@ -40,6 +40,24 @@ struct KVoiceShortcuts: AppShortcutsProvider {
             shortTitle: "Stop Dictation",
             systemImageName: "stop.fill"
         )
+        AppShortcut(
+            intent: BeginDictationIntent(),
+            phrases: [
+                "Begin dictation with \(.applicationName)",
+                "Begin \(.applicationName) dictation"
+            ],
+            shortTitle: "Begin Dictation",
+            systemImageName: "waveform.badge.mic"
+        )
+        AppShortcut(
+            intent: TranscribeAudioIntent(),
+            phrases: [
+                "Transcribe audio with \(.applicationName)",
+                "Transcribe a recording with \(.applicationName)"
+            ],
+            shortTitle: "Transcribe Audio",
+            systemImageName: "waveform"
+        )
     }
 
     static var shortcutTileColor: ShortcutTileColor { .purple }

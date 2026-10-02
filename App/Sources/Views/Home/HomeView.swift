@@ -101,7 +101,15 @@ struct PhaseStatus: View {
         Group {
             switch model.pipeline.phase {
             case .idle:
-                if let notice = model.notice {
+                if model.handoff.effectivePhase.recordingOwner == .shortcut {
+                    // Shortcuts' Record Audio owns the microphone.
+                    VStack(spacing: 8) {
+                        Label(DictationActivity.Message.shortcutRecordingApp, systemImage: "button.vertical.right.press")
+                            .foregroundStyle(.orange)
+                        Button("Not recording? Reset") { model.handoff.resetShortcut() }
+                            .font(.footnote)
+                    }
+                } else if let notice = model.notice {
                     Label(notice, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
                 } else {

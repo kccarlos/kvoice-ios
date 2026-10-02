@@ -28,6 +28,7 @@ struct KVoiceApp: App {
             case .active:
                 model.modes.reload()
                 model.settings.reload()
+                model.appBecameActive()
             case .background:
                 // Leave the compact recorder once the keyboard session is over.
                 if model.handoff.sessionID == nil { model.handoff.isPresentingRecorder = false }
@@ -45,6 +46,9 @@ struct KVoiceApp: App {
             }
             .task {
                 if let url = AppPreferences.launchURL { model.handoff.handle(url) }
+                #if DEBUG
+                if let file = AppModel.debugTranscribeFile { await model.debugRunShortcut(file: file) }
+                #endif
                 await model.applyRetention()
             }
     }
