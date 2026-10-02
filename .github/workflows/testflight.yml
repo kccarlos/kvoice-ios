@@ -60,7 +60,7 @@ jobs:
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
       BUILD: ${{ needs.preflight.outputs.build }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Select Xcode
         run: Scripts/ci/select-xcode.sh
       - name: Generate project

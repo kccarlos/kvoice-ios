@@ -22,7 +22,7 @@ jobs:
     runs-on: ${{ vars.CI_MACOS_RUNNER || 'xcode-27' }}
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Select Xcode
         run: Scripts/ci/select-xcode.sh
       - name: Generate project
