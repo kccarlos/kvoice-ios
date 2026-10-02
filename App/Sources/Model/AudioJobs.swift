@@ -45,6 +45,9 @@ extension AppModel {
         continueInForeground: @MainActor () async throws -> Void
     ) async throws -> String {
         guard let history else { throw AudioJobError.failed("KVoice History is unavailable, so the audio could not be saved.") }
+        // Provisional (no prompt), so the "dictation saved" notice can be
+        // delivered even if the setup screen was never opened.
+        JobNotifier.requestAuthorization()
         var jobID = UUID()
         var jobModeID = modeID
         for case let .runJob(id, mode, _) in handoff.send(.transcribeRequested(newJobID: jobID, modeID: modeID, now: .now)) {
