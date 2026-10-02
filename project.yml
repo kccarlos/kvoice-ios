@@ -31,6 +31,7 @@ targets:
       - path: App/Resources
     dependencies:
       - package: KVoiceKit
+        product: KVoiceKit
       - target: KVoiceKeyboard
         embed: true
     entitlements:
@@ -74,7 +75,10 @@ targets:
     sources:
       - path: Keyboard/Sources
     dependencies:
+      # Core only: the keyboard must not link WhisperKit, Speech or
+      # FoundationModels (extension memory limit).
       - package: KVoiceKit
+        product: KVoiceCore
     entitlements:
       path: Keyboard/KVoiceKeyboard.entitlements
       properties:
@@ -107,6 +111,9 @@ targets:
       - path: Packages/KVoiceKit/Tests/KVoiceKitTests
     dependencies:
       - package: KVoiceKit
+        product: KVoiceKit
+      - package: KVoiceKit
+        product: KVoiceCore
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.kccarlos.kvoice.ios.tests

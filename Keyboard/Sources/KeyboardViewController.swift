@@ -1,6 +1,6 @@
 import UIKit
 import SwiftUI
-import KVoiceKit
+import KVoiceCore
 
 final class KeyboardViewController: UIInputViewController {
     override func viewDidLoad() {

@@ -1,4 +1,5 @@
 import Testing
+@testable import KVoiceCore
 @testable import KVoiceKit
 
 @Suite struct PromptComposerTests {

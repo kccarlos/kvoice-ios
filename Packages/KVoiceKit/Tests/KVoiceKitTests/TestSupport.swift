@@ -1,5 +1,6 @@
 import Foundation
 import Synchronization
+@testable import KVoiceCore
 @testable import KVoiceKit
 
 /// A fresh temporary directory, removed by `cleanUp()`.
