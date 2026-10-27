@@ -17,7 +17,12 @@ final class LiveActivityController {
     /// preview); set by `HandoffCoordinator` before the job settles.
     var resultText: String?
 
+    /// The activity this controller owns. Its attribute `sessionID` is fixed
+    /// when it is created, so a reused activity (standby taken over by a new
+    /// session) is tracked by `currentSessionID` instead.
     private var current: Live?
+    /// The session `current` represents now.
+    private var currentSessionID: UUID?
     private var lastStatus: DictationLiveStatus?
     private let log = DiagnosticsLog.shared
 
@@ -29,28 +34,47 @@ final class LiveActivityController {
     // MARK: Request
 
     /// Requests the activity for a recording that is about to start.
-    /// Returns whether it was granted.
+    /// The request goes first: from a background intent it can fail, and then
+    /// the standby activity is reused (updated to recording) rather than lost,
+    /// because an audio recording intent needs a Live Activity. Old
+    /// activities end only after the new one is secured.
+    /// Returns whether there is a live activity for the session, requested
+    /// or reused.
     @discardableResult
     func start(sessionID: UUID, modeName: String, modeIcon: String) -> Bool {
         guard isEnabled else {
             log.append(category: "liveactivity", "request skipped: activities disabled")
             return false
         }
-        // A standby activity from the previous session gives way.
-        endAll(except: nil)
         let status = DictationLiveStatus(stage: .recording(startedAt: .now), modeName: modeName, modeIcon: modeIcon)
+        let existing = current ?? Live.activities.first
         do {
-            current = try Live.request(
+            let live = try Live.request(
                 attributes: DictationActivityAttributes(sessionID: sessionID),
                 content: ActivityContent(state: status, staleDate: nil),
                 pushType: nil
             )
+            current = live
+            currentSessionID = sessionID
             lastStatus = status
             log.append(category: "liveactivity", "request ok")
+            // A standby activity from the previous session gives way.
+            for old in Live.activities where old.id != live.id {
+                Self.end(id: old.id, content: nil, policy: .immediate)
+            }
             return true
         } catch {
             log.append(category: "liveactivity", "request failed \(Self.describe(error))")
-            return false
+            guard let existing else { return false }
+            log.append(category: "liveactivity", "request failed, reusing existing")
+            current = existing
+            currentSessionID = sessionID
+            lastStatus = status
+            Self.update(id: existing.id, content: ActivityContent(state: status, staleDate: nil))
+            for other in Live.activities where other.id != existing.id {
+                Self.end(id: other.id, content: nil, policy: .immediate)
+            }
+            return true
         }
     }
 
@@ -68,19 +92,18 @@ final class LiveActivityController {
             if current != nil || !Live.activities.isEmpty { endAll(except: nil) }
             return
         }
-        guard let live = liveActivity(for: activity.id) else {
-            // A session someone else started (keyboard) took over a standby
-            // activity; it cannot be requested here, so just end it.
-            if case .standby = status.stage {} else if current != nil { endAll(except: nil) }
-            return
+        if liveActivity(for: activity.id) == nil, current != nil {
+            // A session someone else started (keyboard) took over the standby
+            // activity; it cannot be requested here, so reuse it.
+            currentSessionID = activity.id
         }
+        guard let live = liveActivity(for: activity.id) else { return }
         guard status != lastStatus else { return }
         lastStatus = status
         let content = ActivityContent(state: status, staleDate: nil)
         switch status.stage {
         case .done, .failed:
-            current = nil
-            lastStatus = nil
+            forgetCurrent()
             resultText = nil
             Self.end(id: live.id, content: content, policy: .after(.now.addingTimeInterval(Self.dismissDelay)))
         default:
@@ -89,7 +112,7 @@ final class LiveActivityController {
     }
 
     private func liveActivity(for sessionID: UUID) -> Live? {
-        if let current, current.attributes.sessionID == sessionID { return current }
+        if let current, currentSessionID == sessionID { return current }
         return Live.activities.first { $0.attributes.sessionID == sessionID }
     }
 
@@ -97,28 +120,31 @@ final class LiveActivityController {
 
     /// Ends the activity of one session at once.
     func end(sessionID: UUID) {
-        if current?.attributes.sessionID == sessionID {
-            current = nil
-            lastStatus = nil
-        }
-        for live in Live.activities where live.attributes.sessionID == sessionID {
-            Self.end(id: live.id, content: nil, policy: .immediate)
-        }
+        var ids: Set<String> = []
+        if let current, currentSessionID == sessionID { ids.insert(current.id) }
+        for live in Live.activities where live.attributes.sessionID == sessionID { ids.insert(live.id) }
+        if currentSessionID == sessionID { forgetCurrent() }
+        for id in ids { Self.end(id: id, content: nil, policy: .immediate) }
     }
 
     /// Ends every activity except the one for `keeping`.
     func endAll(except keeping: UUID?) {
-        for live in Live.activities where live.attributes.sessionID != keeping {
+        let keepID = keeping != nil && currentSessionID == keeping ? current?.id : nil
+        for live in Live.activities where live.id != keepID && (keeping == nil || live.attributes.sessionID != keeping) {
             Self.end(id: live.id, content: nil, policy: .immediate)
         }
-        if current?.attributes.sessionID != keeping {
-            current = nil
-            lastStatus = nil
-        }
+        if currentSessionID != keeping { forgetCurrent() }
+    }
+
+    private func forgetCurrent() {
+        current = nil
+        currentSessionID = nil
+        lastStatus = nil
     }
 
     /// Launch cleanup: a previous process may have left activities behind.
-    /// Keeps only the one that belongs to a recording or job still alive.
+    /// Keeps only the one that belongs to a recording or job still alive,
+    /// including a reused one whose attribute names an older session.
     func appLaunched(activity: DictationActivity) {
         let phase = activity.effectivePhase(now: .now)
         var keeping: UUID?
@@ -128,6 +154,11 @@ final class LiveActivityController {
         }
         let count = Live.activities.count
         if count > 0 { log.append(category: "liveactivity", "launch cleanup count=\(count) keeping=\(keeping != nil)") }
+        if let keeping, current == nil,
+           let live = Live.activities.first(where: { $0.attributes.sessionID == keeping }) ?? Live.activities.first {
+            current = live
+            currentSessionID = keeping
+        }
         endAll(except: keeping)
     }
 
