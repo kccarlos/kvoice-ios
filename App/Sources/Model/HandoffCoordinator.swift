@@ -201,6 +201,7 @@ final class HandoffCoordinator {
     func audioInterrupted() {
         let pipeline = model.pipeline
         let duration = pipeline.recordedDuration
+        DiagnosticsLog.shared.append(category: "audio", "interrupted \(stateSummary)")
         let effects = send(.audioInterrupted(recordedDuration: duration, now: .now))
         var handled = false
         for effect in effects {
@@ -225,6 +226,15 @@ final class HandoffCoordinator {
             }
         }
         endStandby()
+    }
+
+    /// Facts for mic-loss diagnostics: seconds recorded, effective phase,
+    /// source and foreground state. Never text.
+    var stateSummary: String {
+        let phase = String(describing: effectivePhase).prefix { $0 != "(" }
+        let seconds = Int(model.pipeline.recordedDuration)
+        let foreground = UIApplication.shared.applicationState == .active
+        return "seconds=\(seconds) phase=\(phase) source=\(appSource.rawValue) fg=\(foreground) standby=\(isStandingBy)"
     }
 
     // MARK: URL entry point

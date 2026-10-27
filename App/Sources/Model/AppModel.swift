@@ -66,7 +66,7 @@ final class AppModel {
         self.handoff = HandoffCoordinator(model: self)
         pipeline.phaseHandler = { [weak self] phase in self?.phaseChanged(phase) }
         recorder.engineStoppedHandler = { [weak self] in
-            self?.handleAudioLoss()
+            self?.handleAudioLoss(cause: "engine stopped")
         }
         observeOtherProcess()
         observeAudioSession()
@@ -214,16 +214,19 @@ final class AppModel {
             forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
         ) { [weak self] note in
             let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
-            guard raw.flatMap(AVAudioSession.InterruptionType.init(rawValue:)) == .began else { return }
+            let type = raw.flatMap(AVAudioSession.InterruptionType.init(rawValue:))
+            let reasonRaw = note.userInfo?[AVAudioSessionInterruptionReasonKey] as? UInt
+            let reason = reasonRaw.flatMap(AVAudioSession.InterruptionReason.init(rawValue:))
+            guard type == .began else { return }
             MainActor.assumeIsolated {
-                self?.handleAudioLoss()
+                self?.handleAudioLoss(cause: "interruption began reason=\(reason.map(Self.describe) ?? "unknown")")
             }
         })
         systemObservers.append(center.addObserver(
             forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.handleAudioLoss()
+                self?.handleAudioLoss(cause: "media services reset")
             }
         })
         systemObservers.append(center.addObserver(
@@ -237,10 +240,21 @@ final class AppModel {
     /// Shortcuts' Record Audio, a route change or a media reset): process
     /// what was recorded if it is at least 1 s long, otherwise cancel; end
     /// standby quietly.
-    private func handleAudioLoss() {
+    private func handleAudioLoss(cause: String) {
+        DiagnosticsLog.shared.append(category: "audio", "loss \(cause) \(handoff.stateSummary)")
         if pipeline.isRecording, !InterruptionSalvage.shouldProcess(recordedDuration: pipeline.recordedDuration) {
             notice = "Recording was interrupted."
         }
         handoff.audioInterrupted()
+    }
+
+    private static func describe(_ reason: AVAudioSession.InterruptionReason) -> String {
+        switch reason {
+        case .default: "default"
+        case .appWasSuspended: "appWasSuspended"
+        case .builtInMicMuted: "builtInMicMuted"
+        case .routeDisconnected: "routeDisconnected"
+        @unknown default: "other"
+        }
     }
 }
