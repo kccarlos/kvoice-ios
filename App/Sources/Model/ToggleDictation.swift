@@ -128,7 +128,9 @@ extension AppModel {
                 isForeground: false
             ))
             Self.log.append(category: "intent", "budget plan=\(plan)")
-            if plan == .continueInForeground {
+            // The live recording cannot switch engines, so a job that needs
+            // Apple Speech to fit the budget also finishes in the foreground.
+            if plan != .runSelected {
                 do {
                     try await continueInForeground("Finish this dictation in KVoice?")
                 } catch {
