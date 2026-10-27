@@ -28,6 +28,9 @@ public struct DictationActivity: Codable, Sendable, Hashable {
         case intent
         /// The Action Button / Shortcuts flow.
         case shortcut
+        /// Toggle Dictation: the Action Button, a Control or a one-action
+        /// shortcut. One press starts, the next stops.
+        case actionButton
     }
 
     public enum Stage: String, Codable, Sendable, Hashable {
@@ -148,6 +151,31 @@ public struct DictationActivity: Codable, Sendable, Hashable {
             return .blocked(Message.transcribing)
         case .processing(.formatting, _):
             return .blocked(Message.formatting)
+        }
+    }
+
+    // MARK: Toggle Dictation
+
+    /// What one press of Toggle Dictation does in the current phase.
+    public enum ToggleRoute: Sendable, Hashable {
+        /// Begin an app recording.
+        case start
+        /// Stop the app's recording and return the text, whatever started it.
+        case stop
+        /// Do nothing; the message says why.
+        case blocked(String)
+    }
+
+    public func toggleRoute(now: Date) -> ToggleRoute {
+        switch effectivePhase(now: now) {
+        case .idle, .delivered, .failed, .standby:
+            return .start
+        case .recording(.app, _, _):
+            return .stop
+        case .recording(.shortcut, _, _):
+            return .blocked(Message.shortcutRecordingApp)
+        case .processing:
+            return .blocked(Message.busy)
         }
     }
 }
