@@ -10,6 +10,9 @@ public struct DictationLiveStatus: Codable, Sendable, Hashable {
         case formatting
         case done(preview: String)
         case failed(message: String)
+        /// The engine keeps running until `until`; `lastPreview` is the text
+        /// just copied, if any.
+        case standby(until: Date, lastPreview: String?)
     }
 
     public var stage: Stage
@@ -26,7 +29,7 @@ public struct DictationLiveStatus: Codable, Sendable, Hashable {
     public static let previewLength = 80
 
     /// The status for a phase, or nil when the Live Activity should end
-    /// (idle, standby).
+    /// (idle).
     public static func from(
         phase: DictationActivity.Phase,
         modeName: String,
@@ -35,8 +38,11 @@ public struct DictationLiveStatus: Codable, Sendable, Hashable {
     ) -> DictationLiveStatus? {
         let stage: Stage
         switch phase {
-        case .idle, .standby:
+        case .idle:
             return nil
+        case .standby(let expiresAt):
+            let last = resultText.map(preview(of:)).flatMap { $0.isEmpty ? nil : $0 }
+            stage = .standby(until: expiresAt, lastPreview: last)
         case .recording(_, _, let startedAt):
             stage = .recording(startedAt: startedAt)
         case .processing(.transcribing, _):

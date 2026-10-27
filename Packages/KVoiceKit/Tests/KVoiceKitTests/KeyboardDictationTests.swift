@@ -267,4 +267,34 @@ import Testing
         #expect(K.insertionText(for: ", then", contextBeforeInput: "Hello") == ", then")
         #expect(K.insertionText(for: "quote", contextBeforeInput: "say (") == "quote")
     }
+
+    // MARK: End session
+
+    func standbyActivity() -> DictationActivity {
+        DictationActivity(phase: .standby(expiresAt: t0.addingTimeInterval(300)),
+                          leaseExpiresAt: t0.addingTimeInterval(300), updatedAt: t0)
+    }
+
+    @Test func endButtonShowsOnlyInStandbyAndSendsEndSession() {
+        var machine = KeyboardDictation()
+        #expect(!machine.showsEndSession)
+        #expect(machine.handle(.endSessionTapped(sessionID: session, now: t0)).isEmpty)
+        _ = machine.handle(.activityChanged(standbyActivity(), now: t0))
+        #expect(machine.showsEndSession)
+        let effects = machine.handle(.endSessionTapped(sessionID: session, now: t0))
+        #expect(effects == [.sendCommand(HandoffCommand(action: .endSession, sessionID: session, createdAt: t0))])
+        #expect(!machine.showsEndSession)
+    }
+
+    @Test func endButtonHidesWhileASessionRunsAndWhenStandbyEnds() {
+        var machine = KeyboardDictation()
+        _ = machine.handle(.activityChanged(standbyActivity(), now: t0))
+        _ = machine.handle(.micTapped(newSessionID: session, modeID: mode, appAcceptsCommands: true, now: t0))
+        #expect(!machine.showsEndSession)
+        #expect(machine.handle(.endSessionTapped(sessionID: UUID(), now: t0)).isEmpty)
+        var other = KeyboardDictation()
+        _ = other.handle(.activityChanged(standbyActivity(), now: t0))
+        _ = other.handle(.activityChanged(nil, now: t0))
+        #expect(!other.showsEndSession)
+    }
 }

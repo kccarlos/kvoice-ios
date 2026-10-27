@@ -61,6 +61,8 @@ public struct KeyboardDictation: Sendable, Equatable {
         /// Undo the last insertion; `contextBeforeInput` is the text before
         /// the cursor.
         case undoTapped(contextBeforeInput: String?)
+        /// The power button next to the mic. `sessionID` labels the command.
+        case endSessionTapped(sessionID: UUID, now: Date)
         /// The user typed or deleted: the last insertion is no longer undoable.
         case userEdited
         /// A fresh read of the shared `DictationActivity` (after its Darwin
@@ -130,6 +132,10 @@ public struct KeyboardDictation: Sendable, Equatable {
     public private(set) var distrustsStandby = false
     /// The shared activity, as it affects the mic.
     public private(set) var external: External = .none
+    /// The app is in standby (engine running, listening for commands).
+    public private(set) var isStandby = false
+    /// Whether the End button shows: standby, and nothing of ours in flight.
+    public var showsEndSession: Bool { isStandby && !phase.isActive }
     /// Sessions this keyboard finished or abandoned: never adopted again.
     private var settledSessions: [UUID] = []
 
@@ -171,8 +177,15 @@ public struct KeyboardDictation: Sendable, Equatable {
             lastInsertion = nil
             return []
 
+        case let .endSessionTapped(sessionID, now):
+            guard showsEndSession else { return [] }
+            isStandby = false
+            return [.sendCommand(HandoffCommand(action: .endSession, sessionID: sessionID, createdAt: now))]
+
         case let .activityChanged(activity, now):
-            switch activity?.keyboardRoute(now: now) ?? .openApp {
+            let route = activity?.keyboardRoute(now: now) ?? .openApp
+            isStandby = route == .command
+            switch route {
             case .openApp, .command:
                 external = .none
             case .stop(let session):

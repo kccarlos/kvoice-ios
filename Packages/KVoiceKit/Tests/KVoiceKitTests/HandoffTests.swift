@@ -113,4 +113,14 @@ import Testing
         ]
         #expect(Set(names).count == names.count)
     }
+
+    @Test func endSessionCommandRoundTripsAndOldCommandsDecode() throws {
+        let command = HandoffCommand(action: .endSession, sessionID: UUID(), createdAt: fixedDate)
+        let data = try JSONEncoder().encode(command)
+        #expect(try JSONDecoder().decode(HandoffCommand.self, from: data) == command)
+        #expect(HandoffCommand.Action.endSession.rawValue == "endSession")
+        for raw in ["start", "stop", "cancel"] {
+            #expect(HandoffCommand.Action(rawValue: raw) != nil)
+        }
+    }
 }

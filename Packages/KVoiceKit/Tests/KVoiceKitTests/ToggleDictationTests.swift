@@ -58,7 +58,9 @@ import Testing
             DictationLiveStatus.from(phase: phase, modeName: "Clean", modeIcon: "sparkles", resultText: text)
         }
         #expect(status(.idle) == nil)
-        #expect(status(.standby(expiresAt: t0)) == nil)
+        #expect(status(.standby(expiresAt: t0))?.stage == .standby(until: t0, lastPreview: nil))
+        #expect(status(.standby(expiresAt: t0), text: "hello")?.stage == .standby(until: t0, lastPreview: "hello"))
+        #expect(status(.standby(expiresAt: t0), text: "  ")?.stage == .standby(until: t0, lastPreview: nil))
         #expect(status(.recording(owner: .app, source: .actionButton, startedAt: t0))?.stage == .recording(startedAt: t0))
         #expect(status(.processing(stage: .transcribing, jobID: job))?.stage == .transcribing)
         #expect(status(.processing(stage: .formatting, jobID: job))?.stage == .formatting)
@@ -69,6 +71,16 @@ import Testing
         let s = status(.processing(stage: .formatting, jobID: job))
         #expect(s?.modeName == "Clean")
         #expect(s?.modeIcon == "sparkles")
+    }
+
+    @Test func standbyStatusPreviewIsCutAndRoundTrips() throws {
+        let long = String(repeating: "a", count: 90)
+        let status = DictationLiveStatus.from(
+            phase: .standby(expiresAt: t0), modeName: "M", modeIcon: "mic", resultText: long
+        )
+        #expect(status?.stage == .standby(until: t0, lastPreview: String(repeating: "a", count: 80) + "…"))
+        let data = try JSONEncoder().encode(status)
+        #expect(try JSONDecoder().decode(DictationLiveStatus.self, from: data) == status)
     }
 
     @Test func previewIsCutAtEightyCharacters() {

@@ -27,6 +27,9 @@ public struct HandoffCommand: Codable, Sendable, Hashable {
         case start
         case stop
         case cancel
+        /// Leave standby: release the microphone. Ignored unless the app
+        /// is in standby (never cancels a recording or a job).
+        case endSession
     }
 
     public var action: Action
