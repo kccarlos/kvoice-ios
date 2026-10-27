@@ -53,6 +53,7 @@ struct ActionButtonExplainer: View {
             Label("Dictate from any app", systemImage: "button.vertical.right.press")
                 .font(.headline)
             Text("Press the Action Button once to start recording and again to stop. KVoice transcribes, copies the text to the clipboard, and types it when the KVoice keyboard is open. Everything is saved in History.")
+            Text("In any app with the KVoice keyboard open: press the Action Button, speak, press again, and the text is typed. The keyboard mic then works without leaving the app while KVoice keeps listening (see Keep listening for the keyboard in Settings). Tap ⏻ on the keyboard, or End in the Live Activity, to end the session.")
             Text("KVoice tries to start in the background so the app you're in stays in front. If iOS refuses, KVoice opens briefly to start (on the Lock Screen it asks for Face ID) and you can switch back. A Live Activity shows the recording; its Stop button does the same as the second press.")
                 .foregroundStyle(.secondary)
             Text("Long recordings, or a mode that needs more time than iOS gives a background task, finish in KVoice instead: you are asked to open it when you stop.")

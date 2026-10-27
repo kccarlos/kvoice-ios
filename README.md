@@ -16,10 +16,13 @@ Status: early development. Builds go to TestFlight on every push to `main`.
   Dictation control or shortcut) starts recording, the next press stops it,
   transcribes and formats, copies the text to the clipboard, offers it to a
   visible KVoice keyboard and saves History. KVoice tries to start in the
-  background; if iOS refuses, it opens briefly. The Record Audio shortcut
-  stays available as an advanced fallback.
+  background; if iOS refuses, it opens briefly. Afterwards KVoice keeps
+  listening for the keep-alive window, so the keyboard mic works without
+  leaving the app; the keyboard's power button ends the session. The Record
+  Audio shortcut stays available as an advanced fallback.
 - FR-6 A Live Activity shows the recording (mode and timer) and the stages
-  after it, with a Stop button; it is requested for Toggle Dictation and for
+  after it, with a Stop button, and a ready state with an End button while KVoice
+  keeps listening; it is requested for Toggle Dictation and for
   recordings started in the app.
 - FR-7 A Toggle Dictation Control Center / Lock Screen control.
 - FR-8 A Diagnostics screen in Settings with a local log (no transcripts or

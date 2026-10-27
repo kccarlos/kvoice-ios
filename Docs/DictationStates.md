@@ -113,7 +113,8 @@ a job finishes, except silence.
 | Phase | Result |
 | --- | --- |
 | idle, delivered, failed | Open KVoice (`HandoffRequest` + `kvoice://dictate?session=`) |
-| standby, lease valid | `HandoffCommand(.start)`, no app switch |
+| standby, lease valid | `HandoffCommand(.start)`, no app switch; a power button ("End KVoice session") sends `HandoffCommand(.endSession)` |
+| idle, no Action Button tip dismissed | Subtle one-line tip: press the Action Button to dictate without leaving the app (dismissal kept in App Group defaults) |
 | recording(.app) | `HandoffCommand(.stop)` for the record's `id`; the keyboard follows that session and types its result (also for a recording started in the app) |
 | recording(.shortcut) | Mic disabled. Status: "Recording with the Action Button — tap Stop in the recording panel" |
 | processing | Mic disabled; the status shows the stage |
@@ -182,6 +183,22 @@ run it.
 
 A blocked press throws that message as an error.
 
+### Toggle then standby
+
+A recording with source `actionButton` is started with
+`keepsEngineRunning = true` and `deactivatesSessionOnStop = false` when
+"Keep listening for the keyboard" is above zero. When it settles (stop from
+the Action Button, the keyboard mic or the Live Activity), `finishSession`
+enters standby exactly as after a keyboard session. In standby the keyboard
+mic sends `HandoffCommand(.start)` without opening KVoice, and a toggle
+start reuses the running engine (logged `fromStandby=true`); this is the
+path most likely to work in the background and on the Lock Screen.
+
+`HandoffCommand(.endSession)` (the keyboard's power button) and the Live
+Activity's End button (`EndDictationSessionIntent`) call `endStandby()`.
+They are ignored unless the phase is standby, so a recording or job is never
+cancelled.
+
 ### Start order
 
 1. Log the start (foreground flag, strategy).
@@ -214,13 +231,17 @@ Either way the text is returned by the stopping press.
 ### Stop
 
 In the background the intent estimates the job with `BackgroundBudget`
-(recorded duration, engine, model loaded, formatting). Whenever the plan is
-anything other than `runSelected`, the stop finishes in the foreground:
+(recorded duration, engine, model loaded, formatting). When standby follows (keep-listening above zero and the engine keeps
+running) the budget step is skipped (logged `budget skipped standby`),
+because a running audio engine keeps the app alive. Otherwise, whenever the
+plan is anything other than `runSelected`, the stop finishes in the foreground:
 `continueInForeground("Finish this dictation in KVoice?")` first, because
 the live recording cannot switch engines. If that continuation is declined,
 the recording keeps running and the intent throws "Still recording"; press
-again or open KVoice. Then `stopAppRecording()` returns the text, which is
-copied to the clipboard (the pasteboard change count is logged). Empty text
+again or open KVoice. Then `stopAppRecording()` returns the text. The clipboard copy is not done
+by the intent: `HandoffCoordinator` copies an `actionButton` result when the
+job is done, before delivery, so it happens even if Shortcuts timed the
+intent out (the pasteboard change count is logged). Empty text
 throws "No speech detected." so a shortcut stops. Delivery to a visible
 keyboard and History happen as for any app recording.
 
@@ -234,7 +255,8 @@ foreground; keyboard sessions get none.
 
 | Phase | Live Activity |
 | --- | --- |
-| idle, standby | End |
+| idle | End |
+| standby | Update: "KVoice ready" with a countdown to the end of standby, the last result preview ("Copied: …") and an End button; a job that settles into standby updates the activity instead of ending it |
 | recording | Update: recording with start time (timer) |
 | processing(transcribing) | Update: Transcribing |
 | processing(formatting) | Update: Formatting |

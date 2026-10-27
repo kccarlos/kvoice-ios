@@ -162,6 +162,29 @@ final class KeyboardModel {
         ))
     }
 
+    /// The power button in standby: the app releases the microphone.
+    func endSessionTapped() {
+        send(.endSessionTapped(sessionID: UUID(), now: .now))
+    }
+
+    // MARK: Action Button tip
+
+    private static let tipDismissedKey = "keyboard.actionButtonTipDismissed"
+    private(set) var tipDismissed = AppGroup.defaults.bool(forKey: tipDismissedKey)
+
+    /// A one-line hint on the idle keyboard that the Action Button dictates
+    /// without leaving the app. Only where the mic would open KVoice.
+    var showsActionButtonTip: Bool {
+        hasFullAccess && !tipDismissed && !dictation.phase.isActive
+            && dictation.external == .none && !dictation.isStandby
+            && !(dictation.phase == .inserted)
+    }
+
+    func dismissTip() {
+        tipDismissed = true
+        AppGroup.defaults.set(true, forKey: Self.tipDismissedKey)
+    }
+
     func cancelTapped() {
         send(.cancelTapped(now: .now))
     }

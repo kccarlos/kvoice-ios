@@ -89,11 +89,37 @@ private struct KeyboardDictationPanel: View {
                 sideSlot {
                     if model.canUndo && !model.phase.isActive {
                         KeyboardPillButton(title: "Undo", systemImage: "arrow.uturn.backward", action: model.undoTapped)
+                    } else if model.dictation.showsEndSession {
+                        Button(action: model.endSessionTapped) {
+                            Image(systemName: "power")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.primary)
+                                .frame(width: 36, height: 36)
+                                .background(KeyboardColors.functionKey, in: .circle)
+                        }
+                        .buttonStyle(KeyboardPressStyle())
+                        .accessibilityLabel("End KVoice session")
                     }
                 }
             }
             .padding(.horizontal, 12)
             KeyboardStatusLine(phase: model.phase, external: model.dictation.external, modeName: model.activeMode?.name)
+            if model.showsActionButtonTip {
+                HStack(spacing: 4) {
+                    Text("Tip: press the Action Button to dictate without leaving this app")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Button(action: model.dismissTip) {
+                        Image(systemName: "xmark").font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+                            .frame(width: 24, height: 24)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Dismiss tip")
+                }
+                .padding(.horizontal, 16)
+            }
         }
     }
 
