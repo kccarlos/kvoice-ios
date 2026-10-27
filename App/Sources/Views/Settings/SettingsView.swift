@@ -91,6 +91,7 @@ struct SettingsView: View {
                 Section("About") {
                     LabeledContent("Version", value: Self.version)
                     LabeledContent("License", value: "MIT")
+                    NavigationLink("Diagnostics") { DiagnosticsView() }
                 }
             }
             .navigationTitle("Settings")
