@@ -12,6 +12,18 @@ Status: early development. Builds go to TestFlight on every push to `main`.
 - FR-1 Record with a hold-to-talk or tap-to-toggle control; stop inserts the result.
 - FR-2 Start dictation from anywhere: a custom keyboard, an App Shortcut /
   Siri phrase, the Action Button, and a Control Center control.
+- FR-5 Toggle Dictation: one press of the Action Button (or the Toggle
+  Dictation control or shortcut) starts recording, the next press stops it,
+  transcribes and formats, copies the text to the clipboard, offers it to a
+  visible KVoice keyboard and saves History. KVoice tries to start in the
+  background; if iOS refuses, it opens briefly. The Record Audio shortcut
+  stays available as an advanced fallback.
+- FR-6 A Live Activity shows the recording (mode and timer) and the stages
+  after it, with a Stop button; it is requested for Toggle Dictation and for
+  recordings started in the app.
+- FR-7 A Toggle Dictation Control Center / Lock Screen control.
+- FR-8 A Diagnostics screen in Settings with a local log (no transcripts or
+  keys) and a start strategy switch, to troubleshoot background starts.
 - FR-3 The custom keyboard switches to the app to record (iOS keyboards
   cannot use the microphone), then returns and types the result into the
   text field that was active.

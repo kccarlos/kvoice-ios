@@ -9,8 +9,11 @@
 | `KVoiceWidgets` | WidgetKit extension | `KVoiceCore` | Control Center control and a home / Lock Screen widget that start a dictation. |
 | `KVoiceKitTests` | unit tests | both products | Package tests, run by the `KVoice` scheme. |
 
-`Shared/Intents` (`DictateIntent`, `ModeEntity`) is compiled into the app
-and the widget extension; the intent always runs in the app.
+`Shared/Intents` (`DictateIntent`, `ToggleDictationIntent`, `ModeEntity`) is
+compiled into the app and the widget extension; the body of an intent runs
+in the app. `Shared/LiveActivity` (`DictationActivityAttributes`, whose
+content state is the KVoiceCore `DictationLiveStatus`) is compiled into the
+app and the widget extension only, never the keyboard.
 
 ## Package `Packages/KVoiceKit`
 
@@ -86,6 +89,16 @@ convert it to 16 kHz mono, and run on the pipeline's serial job queue under a
 background budget. The keyboard writes a heartbeat (`keyboard.json`) so the
 app knows whether to offer it a result. The full transition table is in
 [DictationStates.md](DictationStates.md).
+
+Toggle Dictation (`ToggleDictationIntent`, `App/Sources/Model/ToggleDictation.swift`)
+uses `DictationActivity.toggleRoute` to start or stop one app recording per
+press. `LiveActivityController` (app) mirrors the record into a Live Activity
+that `DictationLiveActivity` (widgets) draws; it is best effort and requests
+only from the intent and foreground app starts. `DiagnosticsLog` (KVoiceCore,
+`KVoice/Diagnostics/log.jsonl` in the App Group, last 200 entries, no
+transcripts or keys) records what the intent and the controller did, and the
+Settings › Diagnostics screen shows it and picks the `ToggleStartStrategy`.
+Details in [DictationStates.md](DictationStates.md).
 
 `kvoice://dictate` without a session (optionally `?mode=<id>`) starts a
 dictation in the app itself; widgets and Control Center use it or

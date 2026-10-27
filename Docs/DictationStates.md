@@ -38,7 +38,7 @@ An expired lease means the owner is gone (a cancelled shortcut, a killed
 app): the phase reads as `idle` everywhere, so nothing can stay stuck.
 
 `source` is `keyboard`, `app` (record button), `intent` (Siri, widget,
-Control Center) or `shortcut`.
+Control Center), `actionButton` (Toggle Dictation) or `shortcut`.
 
 The keyboard also writes `keyboard.json` (`keyboardVisibleAt`) about every
 2 s while it is on screen with Full Access, and clears it when it goes away.
@@ -162,6 +162,90 @@ in this process is running.
 The Action Button settings screen and the app's "Recording with the Action
 Button" notice offer Reset: `recording(.shortcut)` becomes idle. This covers a
 shortcut stopped from the recording panel before its lease ends.
+
+## Toggle Dictation (Action Button, Control, Live Activity Stop)
+
+`ToggleDictationIntent` (an `AudioRecordingIntent`, optional Mode parameter)
+is one intent for every press: the route comes from
+`DictationActivity.toggleRoute(now:)`, read through the lease. It returns
+`""` when it starts and the text when it stops, so a shortcut can branch on
+an empty result. The Action Button (Controls or Shortcut), the Toggle
+Dictation control, the App Shortcut and the Live Activity's Stop button all
+run it.
+
+| Phase | Route | Effect |
+| --- | --- | --- |
+| idle, delivered, failed, standby | `.start` | Start an app recording with source `actionButton` |
+| recording(.app), any source | `.stop` | Stop and process; a keyboard session still types its result |
+| recording(.shortcut) | `.blocked` | "Recording with the Action Button" (Reset clears it) |
+| processing | `.blocked` | "KVoice is still working on the previous dictation." |
+
+A blocked press throws that message as an error.
+
+### Start order
+
+1. Log the start (foreground flag, strategy).
+2. Request the Live Activity first, before any other await. The intent
+   pre-generates the session id and hands it to the recorder, so the Live
+   Activity's `sessionID` equals `DictationActivity.id`.
+3. Reload modes and settings, apply the Mode parameter, then ask the
+   handoff coordinator to record (`requestAppRecording`).
+4. If the recorder did not start and the intent is in the background, end
+   the Live Activity and call `continueInForeground("Start dictating in
+   KVoice?")`, then start again with a new session id and a new Live
+   Activity. If the user declines, the intent throws. KVoice tries to start
+   in the background; if iOS refuses, it opens briefly.
+
+Whether iOS lets the microphone start from the background for this intent
+is not verified; the Diagnostics screen (Settings) records what happened.
+
+### Start strategies
+
+Debug setting `debug.toggleStartStrategy` (App Group defaults, picked in
+Diagnostics):
+
+| Strategy | Behavior |
+| --- | --- |
+| `returnImmediately` (default) | `perform` returns `""` as soon as the recording runs |
+| `holdUntilStopped` | `perform` stays running until the recording leaves `recording(.app)` or 10 minutes pass, then returns `""` |
+
+Either way the text is returned by the stopping press.
+
+### Stop
+
+In the background the intent estimates the job with `BackgroundBudget`
+(recorded duration, engine, model loaded, formatting). Whenever the plan is
+anything other than `runSelected`, the stop finishes in the foreground:
+`continueInForeground("Finish this dictation in KVoice?")` first, because
+the live recording cannot switch engines. If that continuation is declined,
+the recording keeps running and the intent throws "Still recording"; press
+again or open KVoice. Then `stopAppRecording()` returns the text, which is
+copied to the clipboard (the pasteboard change count is logged). Empty text
+throws "No speech detected." so a shortcut stops. Delivery to a visible
+keyboard and History happen as for any app recording.
+
+### Live Activity mirror
+
+`LiveActivityController` mirrors the record with `DictationLiveStatus.from`.
+It is best effort: every request, update and end error goes to the
+Diagnostics log, and nothing depends on it. Activities are requested only
+from `ToggleDictationIntent` and from a recording the app starts in the
+foreground; keyboard sessions get none.
+
+| Phase | Live Activity |
+| --- | --- |
+| idle, standby | End |
+| recording | Update: recording with start time (timer) |
+| processing(transcribing) | Update: Transcribing |
+| processing(formatting) | Update: Formatting |
+| delivered | Update: done with the first 80 characters, then end after 4 s |
+| failed | Update: failed message, then end after 4 s |
+
+### Launch cleanup
+
+When the app launches it ends every Live Activity whose session id is not
+the current recording or processing id (a killed process leaves them
+behind).
 
 ## Locked device
 
