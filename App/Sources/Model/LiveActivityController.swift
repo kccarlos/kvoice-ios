@@ -36,6 +36,8 @@ final class LiveActivityController {
             log.append(category: "liveactivity", "request skipped: activities disabled")
             return false
         }
+        // A standby activity from the previous session gives way.
+        endAll(except: nil)
         let status = DictationLiveStatus(stage: .recording(startedAt: .now), modeName: modeName, modeIcon: modeIcon)
         do {
             current = try Live.request(
@@ -55,16 +57,24 @@ final class LiveActivityController {
     // MARK: Mirror
 
     /// Follows an activity change: update, or end when the phase has no
-    /// status (idle, standby). Never requests.
+    /// status (idle). A job that settles into standby updates the activity
+    /// instead of ending it. Never requests.
     func sync(_ activity: DictationActivity, mode: Mode) {
         let phase = activity.effectivePhase(now: .now)
         guard let status = DictationLiveStatus.from(
             phase: phase, modeName: mode.name, modeIcon: mode.icon, resultText: resultText
         ) else {
+            resultText = nil
             if current != nil || !Live.activities.isEmpty { endAll(except: nil) }
             return
         }
-        guard let live = liveActivity(for: activity.id), status != lastStatus else { return }
+        guard let live = liveActivity(for: activity.id) else {
+            // A session someone else started (keyboard) took over a standby
+            // activity; it cannot be requested here, so just end it.
+            if case .standby = status.stage {} else if current != nil { endAll(except: nil) }
+            return
+        }
+        guard status != lastStatus else { return }
         lastStatus = status
         let content = ActivityContent(state: status, staleDate: nil)
         switch status.stage {

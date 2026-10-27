@@ -41,7 +41,11 @@ extension AppModel {
     ) async throws {
         let strategy = ToggleStartStrategy.current()
         let foreground = isForeground || UIApplication.shared.applicationState == .active
-        Self.log.append(category: "intent", "start fg=\(foreground) strategy=\(strategy.rawValue)")
+        let fromStandby = handoff.isStandingBy && recorder.isEngineRunning
+        Self.log.append(
+            category: "intent",
+            "start fg=\(foreground) strategy=\(strategy.rawValue) fromStandby=\(fromStandby)"
+        )
 
         // 1. The Live Activity comes first, before any other await: audio
         // recording intents must start one, and a request needs the app to
@@ -112,7 +116,11 @@ extension AppModel {
         let duration = pipeline.recordedDuration
         Self.log.append(category: "intent", "stop fg=\(foreground) seconds=\(Int(duration))")
 
-        if !foreground {
+        // A running engine keeps the app alive, so a standby that follows this
+        // stop needs no trip to the foreground.
+        let standbyFollows = AppPreferences.keepAliveMinutes > 0 && recorder.keepsEngineRunning && recorder.isEngineRunning
+        if standbyFollows { Self.log.append(category: "intent", "budget skipped standby") }
+        if !foreground, !standbyFollows {
             let mode = pipeline.recordingMode ?? modes.activeMode
             let selection = settings.settings.engine(for: mode)
             let whisperLoaded = await engineFactory.isWhisperModelLoaded(selection)
@@ -151,14 +159,8 @@ extension AppModel {
             throw AudioJobError.noSpeech
         }
 
-        // The clipboard may refuse a background write; the changeCount tells.
-        let board = UIPasteboard.general
-        let before = board.changeCount
-        board.string = text
-        Self.log.append(
-            category: "intent",
-            "stop done chars=\(text.count) pasteboardAdvanced=\(board.changeCount != before)"
-        )
+        // The clipboard copy happens in `HandoffCoordinator`'s delivery path.
+        Self.log.append(category: "intent", "stop done chars=\(text.count)")
         return text
     }
 }

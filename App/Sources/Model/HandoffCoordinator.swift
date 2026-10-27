@@ -141,7 +141,16 @@ final class HandoffCoordinator {
                 appSource = source
                 appJobID = nil
                 let recorder = model.recorder
-                recorder.deactivatesSessionOnStop = !isStandingBy
+                // A toggle recording keeps the engine for standby, like a
+                // keyboard session, so the next press needs no new session.
+                let keepsEngine = source == .actionButton && AppPreferences.keepAliveMinutes > 0
+                if keepsEngine {
+                    recorder.keepsEngineRunning = true
+                    recorder.deactivatesSessionOnStop = false
+                } else {
+                    recorder.deactivatesSessionOnStop = !isStandingBy
+                }
+                expiryTask?.cancel()
                 do {
                     try await model.pipeline.startRecording(mode: mode)
                 } catch {
@@ -260,6 +269,11 @@ final class HandoffCoordinator {
         case .cancel:
             guard adoptForKeyboard(command.sessionID) else { return }
             model.pipeline.cancel()
+        case .endSession:
+            // Only a standby ends; a recording or job is never touched.
+            guard case .standby = effectivePhase, !model.pipeline.isBusy else { return }
+            DiagnosticsLog.shared.append(category: "standby", "ended by keyboard")
+            endStandby()
         }
     }
 
@@ -326,6 +340,7 @@ final class HandoffCoordinator {
             let jobID = appJobID ?? activity.id
             model.liveActivity.resultText = result?.text
             if sessionID == nil, let result {
+                if appSource == .actionButton { copyToPasteboard(result.text) }
                 deliver(text: result.text, jobID: jobID, source: appSource)
             }
             finish(jobID: jobID, failure: nil)
@@ -372,11 +387,24 @@ final class HandoffCoordinator {
     }
 
     private func finishSession() {
-        let wasKeyboardSession = sessionID != nil
+        // Keyboard sessions and toggle recordings keep the engine for standby.
+        let keepsStandby = sessionID != nil || appSource == .actionButton
         sessionID = nil
-        if wasKeyboardSession {
+        if keepsStandby {
             startOrExtendStandby()
         }
+    }
+
+    /// The clipboard may refuse a background write; the changeCount tells.
+    /// Done here, not in the intent, so it also happens when Shortcuts has
+    /// already timed the intent out.
+    private func copyToPasteboard(_ text: String) {
+        let board = UIPasteboard.general
+        let before = board.changeCount
+        board.string = text
+        DiagnosticsLog.shared.append(
+            category: "delivery", "copied chars=\(text.count) pasteboardAdvanced=\(board.changeCount != before)"
+        )
     }
 
     // MARK: Results for the keyboard

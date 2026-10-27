@@ -20,9 +20,7 @@ struct DictationLiveActivity: Widget {
                         .lineLimit(1)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if case .recording = context.state.stage {
-                        StopButton()
-                    }
+                    ActionButton(stage: context.state.stage)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     StageLine(status: context.state)
@@ -51,6 +49,7 @@ private func stageIcon(_ stage: DictationLiveStatus.Stage) -> String {
     case .formatting: "sparkles"
     case .done: "checkmark.circle.fill"
     case .failed: "exclamationmark.triangle.fill"
+    case .standby: "power"
     }
 }
 
@@ -72,10 +71,31 @@ private struct DictationLockScreenView: View {
                 StageLine(status: status)
             }
             Spacer(minLength: 0)
-            if case .recording = status.stage {
-                StopButton()
-            }
+            ActionButton(stage: status.stage)
         }
+    }
+}
+
+/// Stop while recording, End while on standby.
+private struct ActionButton: View {
+    let stage: DictationLiveStatus.Stage
+
+    var body: some View {
+        switch stage {
+        case .recording: StopButton()
+        case .standby: EndButton()
+        default: EmptyView()
+        }
+    }
+}
+
+private struct EndButton: View {
+    var body: some View {
+        Button(intent: EndDictationSessionIntent()) {
+            Label("End", systemImage: "power")
+                .font(.subheadline.weight(.semibold))
+        }
+        .buttonStyle(.bordered)
     }
 }
 
@@ -99,6 +119,17 @@ private struct StageLine: View {
                 Text("Copied").font(.headline)
                 if !preview.isEmpty {
                     Text(preview).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                }
+            }
+        case .standby(let until, let lastPreview):
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text("KVoice ready").font(.headline)
+                    Text(timerInterval: Date.now...max(until, Date.now.addingTimeInterval(1)), countsDown: true)
+                        .font(.headline).monospacedDigit().foregroundStyle(.secondary)
+                }
+                if let lastPreview {
+                    Text("Copied: \(lastPreview)").font(.caption).foregroundStyle(.secondary).lineLimit(2)
                 }
             }
         case .failed(let message):
