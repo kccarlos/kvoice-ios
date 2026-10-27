@@ -41,6 +41,8 @@
 	<string>KVoice records your voice only while you dictate, to turn it into text.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>KVoice uses on-device speech recognition to transcribe your dictation.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
