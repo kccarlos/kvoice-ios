@@ -30,6 +30,7 @@ targets:
       - path: App/Sources
       - path: App/Resources
       - path: Shared/Intents
+      - path: Shared/LiveActivity
       # The keyboard UI, for the debug-only `-kvoiceKeyboardPreview` host.
       - path: Keyboard/Shared
     dependencies:
@@ -58,6 +59,7 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UIBackgroundModes: [audio]
+        NSSupportsLiveActivities: true
         NSMicrophoneUsageDescription: KVoice records your voice only while you dictate, to turn it into text.
         NSSpeechRecognitionUsageDescription: KVoice uses on-device speech recognition to transcribe your dictation.
         KVoiceAppGroup: $(KVOICE_APP_GROUP)
@@ -122,6 +124,7 @@ targets:
     sources:
       - path: Widgets/Sources
       - path: Shared/Intents
+      - path: Shared/LiveActivity
     dependencies:
       - package: KVoiceKit
         product: KVoiceCore

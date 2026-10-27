@@ -20,6 +20,16 @@ struct StopDictationIntent: AppIntent {
 
 struct KVoiceShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
+        // First: iOS lists it under Action Button > Shortcut > KVoice.
+        AppShortcut(
+            intent: ToggleDictationIntent(),
+            phrases: [
+                "Toggle \(.applicationName) dictation",
+                "Toggle dictation with \(.applicationName)"
+            ],
+            shortTitle: "Toggle Dictation",
+            systemImageName: "waveform.badge.mic"
+        )
         AppShortcut(
             intent: DictateIntent(),
             phrases: [

@@ -22,6 +22,7 @@ final class AppModel {
     let assets: AssetManager
     let pipeline: DictationPipeline
     let engineFactory: TranscriptionEngineFactory
+    let liveActivity = LiveActivityController()
     @ObservationIgnored private(set) var handoff: HandoffCoordinator!
 
     var selectedTab: AppTab = AppPreferences.initialTab ?? .home
@@ -70,6 +71,7 @@ final class AppModel {
         observeOtherProcess()
         observeAudioSession()
         handoff.appLaunched()
+        liveActivity.appLaunched(activity: handoff.activity)
     }
 
     // MARK: Dictation (Home, intents, widgets)
@@ -84,7 +86,14 @@ final class AppModel {
         if let modeID, modes.mode(id: modeID) != nil {
             try? modes.setActiveMode(id: modeID)
         }
-        notice = await handoff.requestAppRecording(source: source, mode: modes.activeMode)
+        // A foreground recording gets a Live Activity too (best effort).
+        let sessionID = UUID()
+        let mode = modes.activeMode
+        if UIApplication.shared.applicationState == .active, handoff.activity.toggleRoute(now: .now) == .start {
+            liveActivity.start(sessionID: sessionID, modeName: mode.name, modeIcon: mode.icon)
+        }
+        notice = await handoff.requestAppRecording(source: source, mode: mode, sessionID: sessionID)
+        if notice != nil { liveActivity.end(sessionID: sessionID) }
     }
 
     @discardableResult

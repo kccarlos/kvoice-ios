@@ -77,6 +77,7 @@ final class HandoffCoordinator {
         if reducer.activity != activity {
             activity = reducer.activity
             try? mailbox.writeActivity(activity)
+            model.liveActivity.sync(activity, mode: activity.modeID.flatMap(model.modes.mode(id:)) ?? model.modes.activeMode)
         }
         return effects
     }
@@ -129,8 +130,10 @@ final class HandoffCoordinator {
     // MARK: App recordings (record button, DictateIntent)
 
     /// Asks to record from the app. Returns a message when it may not.
-    func requestAppRecording(source: DictationActivity.Source, mode: Mode) async -> String? {
-        for effect in send(.startAppRecording(sessionID: UUID(), source: source, modeID: mode.id, now: .now)) {
+    /// `sessionID` lets a caller that already requested a Live Activity for
+    /// it keep the two in step.
+    func requestAppRecording(source: DictationActivity.Source, mode: Mode, sessionID: UUID = UUID()) async -> String? {
+        for effect in send(.startAppRecording(sessionID: sessionID, source: source, modeID: mode.id, now: .now)) {
             switch effect {
             case .rejectStart(let rejection):
                 return rejection.message
@@ -142,7 +145,14 @@ final class HandoffCoordinator {
                 do {
                     try await model.pipeline.startRecording(mode: mode)
                 } catch {
-                    return nil // Reported through the phase handler.
+                    // Reported through the phase handler; the audio session
+                    // error (an OSStatus) is what a device test needs.
+                    let ns = error as NSError
+                    let underlying = (ns.userInfo[NSUnderlyingErrorKey] as? NSError).map { " underlying=\($0.domain)/\($0.code)" } ?? ""
+                    DiagnosticsLog.shared.append(
+                        category: "recorder", "start failed domain=\(ns.domain) code=\(ns.code)\(underlying)"
+                    )
+                    return nil
                 }
             default:
                 break
@@ -314,6 +324,7 @@ final class HandoffCoordinator {
             if let appJobID { send(.jobStage(jobID: appJobID, stage: .formatting, now: now)) }
         case .done:
             let jobID = appJobID ?? activity.id
+            model.liveActivity.resultText = result?.text
             if sessionID == nil, let result {
                 deliver(text: result.text, jobID: jobID, source: appSource)
             }

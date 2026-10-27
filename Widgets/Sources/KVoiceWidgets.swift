@@ -6,7 +6,9 @@ import WidgetKit
 @main
 struct KVoiceWidgetBundle: WidgetBundle {
     var body: some Widget {
+        ToggleDictationControl()
         DictateControl()
+        DictationLiveActivity()
         DictateWidget()
     }
 }
