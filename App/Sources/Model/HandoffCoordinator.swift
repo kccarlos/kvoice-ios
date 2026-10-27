@@ -340,7 +340,9 @@ final class HandoffCoordinator {
             let jobID = appJobID ?? activity.id
             model.liveActivity.resultText = result?.text
             if sessionID == nil, let result {
-                if appSource == .actionButton { copyToPasteboard(result.text) }
+                // Only the app's own toggle recording (a job id is set); a
+                // History re-run also lands here but never copies.
+                if appSource == .actionButton, appJobID != nil { copyToPasteboard(result.text) }
                 deliver(text: result.text, jobID: jobID, source: appSource)
             }
             finish(jobID: jobID, failure: nil)
@@ -390,6 +392,8 @@ final class HandoffCoordinator {
         // Keyboard sessions and toggle recordings keep the engine for standby.
         let keepsStandby = sessionID != nil || appSource == .actionButton
         sessionID = nil
+        // Read above, so the next job (a re-run) never inherits the source.
+        appSource = .app
         if keepsStandby {
             startOrExtendStandby()
         }
