@@ -158,8 +158,9 @@ final class HandoffCoordinator {
                     // error (an OSStatus) is what a device test needs.
                     let ns = error as NSError
                     let underlying = (ns.userInfo[NSUnderlyingErrorKey] as? NSError).map { " underlying=\($0.domain)/\($0.code)" } ?? ""
+                    let detail = (error as? DictationError).map { " \($0.localizedDescription)" } ?? ""
                     DiagnosticsLog.shared.append(
-                        category: "recorder", "start failed domain=\(ns.domain) code=\(ns.code)\(underlying)"
+                        category: "recorder", "start failed domain=\(ns.domain) code=\(ns.code)\(underlying)\(detail)"
                     )
                     return nil
                 }

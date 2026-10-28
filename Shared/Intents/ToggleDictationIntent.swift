@@ -6,7 +6,9 @@ import Foundation
 /// first press returns an empty string, so a shortcut can branch on it.
 /// Compiled into the app and the widget extension (Control, Live Activity
 /// Stop button); it always runs in the app.
-struct ToggleDictationIntent: AudioRecordingIntent {
+/// Also a `LiveActivityIntent`: only those may start a Live Activity while
+/// KVoice is in the background, and an audio recording intent must start one.
+struct ToggleDictationIntent: AudioRecordingIntent, LiveActivityIntent {
     static var title: LocalizedStringResource { "Toggle Dictation" }
     static var description: IntentDescription {
         IntentDescription("Starts dictating in the background. Run it again to stop; KVoice copies the text and returns it.")

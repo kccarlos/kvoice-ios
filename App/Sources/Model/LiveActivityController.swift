@@ -41,7 +41,7 @@ final class LiveActivityController {
     /// Returns whether there is a live activity for the session, requested
     /// or reused.
     @discardableResult
-    func start(sessionID: UUID, modeName: String, modeIcon: String) -> Bool {
+    func start(sessionID: UUID, modeName: String, modeIcon: String, allowsReuse: Bool = true) -> Bool {
         guard isEnabled else {
             log.append(category: "liveactivity", "request skipped: activities disabled")
             return false
@@ -65,7 +65,7 @@ final class LiveActivityController {
             return true
         } catch {
             log.append(category: "liveactivity", "request failed \(Self.describe(error))")
-            guard let existing else { return false }
+            guard allowsReuse, let existing else { return false }
             log.append(category: "liveactivity", "request failed, reusing existing")
             current = existing
             currentSessionID = sessionID

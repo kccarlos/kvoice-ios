@@ -47,28 +47,38 @@ extension AppModel {
             "start fg=\(foreground) strategy=\(strategy.rawValue) fromStandby=\(fromStandby)"
         )
 
-        // 1. The Live Activity comes first, before any other await: audio
-        // recording intents must start one, and a request needs the app to
-        // still count as the target. Modes are not reloaded yet, so the name
-        // may be stale; the first update corrects it.
+        // 1. The Live Activity comes first, before any other await. iOS
+        // terminates the app when an audio recording intent records without
+        // a Live Activity it started itself, so a reused one does not count.
+        // Modes are not reloaded yet, so the name may be stale; the first
+        // update corrects it.
         var sessionID = UUID()
         let early = modeID.flatMap(modes.mode(id:)) ?? modes.activeMode
-        liveActivity.start(sessionID: sessionID, modeName: early.name, modeIcon: early.icon)
+        var hasLiveActivity = liveActivity.start(
+            sessionID: sessionID, modeName: early.name, modeIcon: early.icon, allowsReuse: false
+        )
 
-        // 2. Then reload and start the recorder.
+        // 2. Then reload and start the recorder, only with a Live Activity.
         modes.reload()
         settings.reload()
         if let modeID, modes.mode(id: modeID) != nil {
             try? modes.setActiveMode(id: modeID)
         }
         let mode = modes.activeMode
-        var rejection = await handoff.requestAppRecording(source: .actionButton, mode: mode, sessionID: sessionID)
-        var started = pipeline.isRecording
-        Self.log.append(category: "intent", "recorder started=\(started) rejected=\(rejection != nil)")
+        var rejection: String?
+        var started = false
+        if hasLiveActivity {
+            rejection = await handoff.requestAppRecording(source: .actionButton, mode: mode, sessionID: sessionID)
+            started = pipeline.isRecording
+        }
+        Self.log.append(
+            category: "intent",
+            "recorder started=\(started) rejected=\(rejection != nil) liveActivity=\(hasLiveActivity)"
+        )
 
-        // 3. Fallback: the microphone could not start in the background.
+        // 3. Fallback: no Live Activity or no microphone in the background.
         if rejection == nil, !started, !foreground {
-            liveActivity.end(sessionID: sessionID)
+            if hasLiveActivity { liveActivity.end(sessionID: sessionID) }
             Self.log.append(category: "intent", "fallback.foreground")
             do {
                 try await continueInForeground("Start dictating in KVoice?")
@@ -77,12 +87,22 @@ extension AppModel {
                 throw AudioJobError.failed("Dictation did not start. Open KVoice to try again.")
             }
             sessionID = UUID()
-            liveActivity.start(sessionID: sessionID, modeName: mode.name, modeIcon: mode.icon)
-            rejection = await handoff.requestAppRecording(source: .actionButton, mode: mode, sessionID: sessionID)
-            started = pipeline.isRecording
-            Self.log.append(category: "intent", "fallback started=\(started) rejected=\(rejection != nil)")
+            hasLiveActivity = liveActivity.start(
+                sessionID: sessionID, modeName: mode.name, modeIcon: mode.icon, allowsReuse: false
+            )
+            if hasLiveActivity {
+                rejection = await handoff.requestAppRecording(source: .actionButton, mode: mode, sessionID: sessionID)
+                started = pipeline.isRecording
+            }
+            Self.log.append(
+                category: "intent",
+                "fallback started=\(started) rejected=\(rejection != nil) liveActivity=\(hasLiveActivity)"
+            )
         }
 
+        guard hasLiveActivity else {
+            throw AudioJobError.failed("Turn on Live Activities for KVoice in Settings to dictate with the Action Button.")
+        }
         guard started else {
             liveActivity.end(sessionID: sessionID)
             if case .failed(let error) = pipeline.phase {
