@@ -186,7 +186,7 @@ final class AppModel {
     }
 
     func allowCloud(_ kind: ProviderKind) {
-        settings.settings.allowCloud(kind)
+        settings.settings.allowCloud(kind, modes: modes.modes)
     }
 
     /// Declined or withdrawn: every choice that uses `kind` goes back on device.

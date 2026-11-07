@@ -40,6 +40,8 @@ public struct Settings: Codable, Sendable, Hashable {
     /// Cloud providers the user allowed to receive audio or text (see
     /// `allowsCloud(_:)`). Optional so settings saved before it decode.
     public var allowedCloudProviders: Set<ProviderKind>?
+    /// Lowercased hosts of custom endpoints the user allowed.
+    public var allowedCustomHosts: Set<String>? = nil
 
     public init(
         defaultEngine: TranscriptionEngineSelection = .appleSpeech,

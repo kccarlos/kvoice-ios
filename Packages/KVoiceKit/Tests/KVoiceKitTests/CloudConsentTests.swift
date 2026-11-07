@@ -33,6 +33,49 @@ import Testing
         #expect(both.providerNeedingConsent(modes: []) == nil)
     }
 
+    @Test func customEndpointConsentIsPerHost() async throws {
+        let hostA = ProviderConfiguration(kind: .customOpenAICompatible, baseURL: URL(string: "https://A.example.com/v1"))
+        let hostB = ProviderConfiguration(kind: .customOpenAICompatible, baseURL: URL(string: "https://b.example.org/v1"))
+        var mode = Mode.email
+        mode.providerOverride = hostB
+        var settings = Settings(defaultProvider: hostA)
+        #expect(settings.customHosts(modes: [mode]) == ["a.example.com", "b.example.org"])
+        settings.allowCloud(.customOpenAICompatible)
+        #expect(settings.allowedCustomHosts == ["a.example.com"])
+        #expect(settings.providerNeedingConsent(modes: []) == nil)
+        #expect(settings.providerNeedingConsent(modes: [mode]) == .customOpenAICompatible)
+
+        // Switching the default to another host asks again, and the pipeline refuses it.
+        settings.defaultProvider = hostB
+        #expect(settings.providerNeedingConsent(modes: []) == .customOpenAICompatible)
+        let current = settings
+        let pipeline = DictationPipeline(
+            recorder: StubRecorder(),
+            engines: StubEngines(engine: StubEngine(text: "hi")),
+            formatters: StubFormatters(formatter: StubFormatter()),
+            history: nil,
+            settings: { current }
+        )
+        await #expect(throws: DictationError.cloudConsentRequired(.customOpenAICompatible)) {
+            try await pipeline.reformat("raw", mode: .notes)
+        }
+
+        settings.allowCloud(.customOpenAICompatible, modes: [mode])
+        #expect(settings.providerNeedingConsent(modes: [mode]) == nil)
+        settings.revokeCloud(.customOpenAICompatible)
+        #expect(settings.allowedCustomHosts == nil)
+    }
+
+    @Test func customConsentFromBeforeHostsAsksAgain() {
+        let custom = ProviderConfiguration(kind: .customOpenAICompatible, baseURL: URL(string: "https://llm.example.com"))
+        let old = Settings(defaultProvider: custom, allowedCloudProviders: [.customOpenAICompatible])
+        #expect(old.providerNeedingConsent(modes: []) == .customOpenAICompatible)
+        // No URL yet: nothing can be sent, so allowing the provider is enough.
+        var empty = Settings(defaultProvider: ProviderConfiguration(kind: .customOpenAICompatible))
+        empty.allowCloud(.customOpenAICompatible)
+        #expect(empty.providerNeedingConsent(modes: []) == nil)
+    }
+
     @Test func revokingMovesChoicesOnDevice() {
         var settings = Settings(defaultEngine: openAIEngine, defaultProvider: ProviderConfiguration(kind: .openAI))
         settings.allowCloud(.openAI)

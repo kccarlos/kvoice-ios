@@ -247,7 +247,7 @@ public final class DictationPipeline {
         guard mode.usesAI else { return transcript }
         do {
             let provider = settings().provider(for: mode)
-            guard settings().allowsCloud(provider.kind) else { throw DictationError.cloudConsentRequired(provider.kind) }
+            guard settings().allowsCloud(provider.kind, baseURL: provider.resolvedBaseURL) else { throw DictationError.cloudConsentRequired(provider.kind) }
             let formatter = try formatters.makeFormatter(for: provider)
             return try await formatter.format(FormatRequest(transcript: transcript, mode: mode))
         } catch {
@@ -267,7 +267,7 @@ public final class DictationPipeline {
         options.onStage?(.transcribing)
         let engineSelection = options.engineOverride ?? settings.engine(for: mode)
         let transcription: TranscriptionResult
-        if let cloud = Settings.cloudProvider(of: engineSelection), !settings.allowsCloud(cloud) {
+        if let cloud = Settings.cloudProvider(of: engineSelection), !settings.allowsCloud(cloud, baseURL: engineSelection.cloud?.resolvedBaseURL) {
             throw DictationError.cloudConsentRequired(cloud)
         }
         do {
@@ -299,7 +299,7 @@ public final class DictationPipeline {
                 ? provider.kind.displayName
                 : "\(provider.kind.displayName) \(provider.model)"
             do {
-                guard settings.allowsCloud(provider.kind) else { throw DictationError.cloudConsentRequired(provider.kind) }
+                guard settings.allowsCloud(provider.kind, baseURL: provider.resolvedBaseURL) else { throw DictationError.cloudConsentRequired(provider.kind) }
                 let formatter = try formatters.makeFormatter(for: provider)
                 formatted = try await formatter.format(FormatRequest(transcript: raw, mode: mode))
             } catch is CancellationError {

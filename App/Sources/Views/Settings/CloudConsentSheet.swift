@@ -9,9 +9,8 @@ struct CloudConsentSheet: View {
     var body: some View {
         let settings = model.settings.settings
         let name = provider.displayName
-        let host = provider == .customOpenAICompatible
-            ? (settings.configuration(for: provider).baseURL ?? settings.defaultEngine.cloud?.baseURL)?.host()
-            : nil
+        let hosts = provider == .customOpenAICompatible ? settings.customHosts(modes: model.modes.modes) : []
+        let destination = hosts.isEmpty ? name : hosts.joined(separator: ", ")
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Image(systemName: "icloud.and.arrow.up")
@@ -19,7 +18,7 @@ struct CloudConsentSheet: View {
                     .foregroundStyle(Color.accentColor)
                 Text("Send your dictation to \(name)?")
                     .font(.title2.bold())
-                Text("You chose \(name)\(host.map { " (\($0))" } ?? ""). To use it, KVoice sends this from your iPhone directly to \(name) with your API key:")
+                Text("You chose \(name). To use it, KVoice sends this from your iPhone directly to \(destination) with your API key:")
                 if provider.supportsTranscription {
                     Label("The audio of each dictation, when it transcribes", systemImage: "waveform")
                 }
