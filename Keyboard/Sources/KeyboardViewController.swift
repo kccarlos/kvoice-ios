@@ -70,7 +70,14 @@ final class KeyboardViewController: UIInputViewController, KeyboardHost {
 
     var documentContextBeforeInput: String? { textDocumentProxy.documentContextBeforeInput }
     var returnKeyType: UIReturnKeyType? { textDocumentProxy.returnKeyType }
-    var autocapitalizes: Bool { (textDocumentProxy.autocapitalizationType ?? .sentences) != .none }
+    var autocapitalization: KeyboardKeys.Autocapitalization {
+        switch textDocumentProxy.autocapitalizationType ?? .sentences {
+        case .none: .none
+        case .words: .words
+        case .allCharacters: .allCharacters
+        default: .sentences
+        }
+    }
 
     func insertText(_ text: String) { textDocumentProxy.insertText(text) }
     func deleteBackward() { textDocumentProxy.deleteBackward() }

@@ -109,11 +109,22 @@ public struct KeyboardKeys: Sendable, Equatable {
         }
     }
 
+    /// The text field's autocapitalization (`UITextAutocapitalizationType`).
+    public enum Autocapitalization: Sendable {
+        case none, words, sentences, allCharacters
+    }
+
     /// The text changed (typed, dictated, or moved by the user): shift
-    /// once at the start of a sentence, unless caps lock is on.
-    public mutating func textChanged(context: String?, autocapitalizes: Bool) {
+    /// once where the field capitalizes, unless caps lock is on.
+    public mutating func textChanged(context: String?, autocapitalization: Autocapitalization) {
         guard shift != .locked else { return }
-        shift = autocapitalizes && Self.startsSentence(context) ? .once : .off
+        let capitalizes = switch autocapitalization {
+        case .none: false
+        case .words: context?.last.map { $0.isWhitespace } ?? true
+        case .sentences: Self.startsSentence(context)
+        case .allCharacters: true
+        }
+        shift = capitalizes ? .once : .off
     }
 
     /// Start of the document, or after ". ", "! ", "? " or a newline.

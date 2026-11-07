@@ -11,7 +11,7 @@ protocol KeyboardHost: AnyObject {
     var needsInputModeSwitchKey: Bool { get }
     var documentContextBeforeInput: String? { get }
     var returnKeyType: UIReturnKeyType? { get }
-    var autocapitalizes: Bool { get }
+    var autocapitalization: KeyboardKeys.Autocapitalization { get }
     func insertText(_ text: String)
     func deleteBackward()
     func adjustTextPosition(byCharacterOffset offset: Int)
@@ -133,7 +133,7 @@ final class KeyboardModel {
     /// Shift follows the text before the cursor; not on layout passes,
     /// where it would undo the user's own shift tap.
     private func updateShift() {
-        keys.textChanged(context: host?.documentContextBeforeInput, autocapitalizes: host?.autocapitalizes ?? true)
+        keys.textChanged(context: host?.documentContextBeforeInput, autocapitalization: host?.autocapitalization ?? .sentences)
     }
 
     private func observe(

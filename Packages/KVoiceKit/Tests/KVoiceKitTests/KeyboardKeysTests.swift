@@ -76,7 +76,7 @@ import Testing
         #expect(keys.shift == .locked)
         #expect(keys.tap(.character("a"), context: "", now: at(1)) == [.insert("A")])
         #expect(keys.tap(.character("b"), context: "A", now: at(2)) == [.insert("B")])
-        keys.textChanged(context: "AB", autocapitalizes: true)
+        keys.textChanged(context: "AB", autocapitalization: .sentences)
         #expect(keys.shift == .locked)
         _ = keys.tap(.shift, context: nil, now: at(3))
         #expect(keys.shift == .off)
@@ -84,7 +84,7 @@ import Testing
 
     @Test func doubleTapFromAutoShiftLocks() {
         var keys = KeyboardKeys()
-        keys.textChanged(context: "", autocapitalizes: true)
+        keys.textChanged(context: "", autocapitalization: .sentences)
         #expect(keys.shift == .once)
         _ = keys.tap(.shift, context: "", now: t0)
         #expect(keys.shift == .off)
@@ -111,11 +111,25 @@ import Testing
 
     @Test func autoShiftFollowsContextAndRespectsNone() {
         var keys = KeyboardKeys()
-        keys.textChanged(context: "Done. ", autocapitalizes: true)
+        keys.textChanged(context: "Done. ", autocapitalization: .sentences)
         #expect(keys.shift == .once)
-        keys.textChanged(context: "Done. W", autocapitalizes: true)
+        keys.textChanged(context: "Done. W", autocapitalization: .sentences)
         #expect(keys.shift == .off)
-        keys.textChanged(context: "", autocapitalizes: false)
+        keys.textChanged(context: "", autocapitalization: .none)
+        #expect(keys.shift == .off)
+    }
+
+    @Test func autoShiftFollowsTheFieldsAutocapitalization() {
+        var keys = KeyboardKeys()
+        keys.textChanged(context: "Hi there ", autocapitalization: .words)
+        #expect(keys.shift == .once)
+        keys.textChanged(context: "Hi there", autocapitalization: .words)
+        #expect(keys.shift == .off)
+        keys.textChanged(context: "Hi there ", autocapitalization: .sentences)
+        #expect(keys.shift == .off)
+        keys.textChanged(context: "AB", autocapitalization: .allCharacters)
+        #expect(keys.shift == .once)
+        keys.textChanged(context: "Done. ", autocapitalization: .none)
         #expect(keys.shift == .off)
     }
 

@@ -87,7 +87,7 @@ final class PreviewKeyboardHost: KeyboardHost {
     let hasFullAccess: Bool
     let needsInputModeSwitchKey = true
     let returnKeyType: UIReturnKeyType? = .default
-    let autocapitalizes = true
+    let autocapitalization = KeyboardKeys.Autocapitalization.sentences
 
     init(hasFullAccess: Bool) {
         self.hasFullAccess = hasFullAccess
