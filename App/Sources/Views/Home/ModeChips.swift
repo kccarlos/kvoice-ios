@@ -21,6 +21,7 @@ struct ModeChips: View {
             }
             .scrollIndicators(.hidden)
             .onAppear { proxy.scrollTo(model.modes.activeModeID, anchor: .center) }
+            .onChange(of: model.modes.activeModeID) { _, id in withAnimation { proxy.scrollTo(id) } }
         }
         .disabled(model.pipeline.isBusy)
     }

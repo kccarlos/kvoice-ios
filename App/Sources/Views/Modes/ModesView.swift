@@ -10,10 +10,18 @@ struct ModesView: View {
     var body: some View {
         NavigationStack {
             List {
+                if model.modes.modes.contains(where: model.needsAISetup) {
+                    Section {
+                        Button("Set Up AI Formatting", systemImage: "sparkles") { model.openAISettings() }
+                    } footer: {
+                        Text("AI modes need Apple Intelligence or an API key. Dictation works without AI.")
+                    }
+                }
                 Section {
                     ForEach(model.modes.modes) { mode in
                         NavigationLink(value: mode.id) {
-                            ModeRow(mode: mode, isActive: mode.id == model.modes.activeModeID)
+                            ModeRow(mode: mode, isActive: mode.id == model.modes.activeModeID,
+                                    needsAISetup: model.needsAISetup(mode))
                         }
                         .swipeActions(edge: .leading) {
                             Button("Use", systemImage: "checkmark.circle") {
@@ -82,34 +90,50 @@ struct ModesView: View {
 struct ModeRow: View {
     let mode: Mode
     let isActive: Bool
+    let needsAISetup: Bool
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
+        // Accessibility sizes: no icon, "Active" under the name.
+        let large = typeSize.isAccessibilitySize
         HStack(spacing: 14) {
-            Image(systemName: mode.icon)
-                .font(.title3)
-                .foregroundStyle(isActive ? Color.white : Color.accentColor)
-                .frame(width: 40, height: 40)
-                .background(isActive ? Color.accentColor : Color.accentColor.opacity(0.12), in: .rect(cornerRadius: 10))
+            if !large {
+                Image(systemName: mode.icon)
+                    .font(.title3)
+                    .foregroundStyle(isActive ? Color.white : Color.accentColor)
+                    .frame(width: 40, height: 40)
+                    .background(isActive ? Color.accentColor : Color.accentColor.opacity(0.12), in: .rect(cornerRadius: 10))
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(mode.name).font(.body.weight(.medium))
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if needsAISetup {
+                    Label("Needs AI setup", systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                } else if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(large ? nil : 1)
+                }
+                if large && isActive { active }
             }
             Spacer()
-            if isActive {
-                Text("Active")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-            }
+            if !large && isActive { active }
         }
         .padding(.vertical, 2)
     }
 
+    private var active: some View {
+        Text("Active")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Color.accentColor)
+    }
+
+    /// Only what differs from the usual (an AI mode in any language).
     private var subtitle: String {
-        var parts = [mode.usesAI ? "AI" : "Plain dictation"]
-        parts.append(mode.language.map(LanguageOptions.name(for:)) ?? "Any language")
+        var parts = mode.usesAI ? [] : ["No AI"]
+        if let language = mode.language { parts.append(LanguageOptions.name(for: language)) }
         if mode.translateToEnglish { parts.append("to English") }
         if !mode.isBuiltIn { parts.append("Custom") }
         return parts.joined(separator: " · ")

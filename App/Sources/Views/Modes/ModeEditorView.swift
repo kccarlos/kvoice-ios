@@ -104,6 +104,7 @@ struct ModeEditorView: View {
             }
         }
         .navigationTitle(isNew ? "New Mode" : draft.name)
+        .toolbar(.hidden, for: .tabBar)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if isNew {

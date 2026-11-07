@@ -42,7 +42,7 @@ enum DemoData {
                  instructions: "Rewrite as a concise code comment in the imperative mood. No Markdown."),
         ]
         for mode in custom { try? modes.save(mode) }
-        try? modes.setActiveMode(id: Mode.BuiltInID.cleanUp)
+        try? modes.setActiveMode(id: Mode.BuiltInID.cleanUp, chosenByUser: false)
     }
 
     static func seed(_ history: HistoryStore) async {

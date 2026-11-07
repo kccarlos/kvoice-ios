@@ -32,6 +32,8 @@ final class AppModel {
     private(set) var historyRevision = 0
     /// A transient message for the Home screen.
     var notice: String?
+    /// Settings shows AI formatting ("Needs AI setup" links).
+    var showsAISettings = false
 
     /// Transcribe Audio jobs running in this process (not to be resumed).
     @ObservationIgnored var runningJobIDs: Set<UUID> = []
@@ -73,6 +75,7 @@ final class AppModel {
         observeAudioSession()
         handoff.appLaunched()
         liveActivity.appLaunched(activity: handoff.activity)
+        modes.fallBackToPlainMode(ifNeedsSetup: needsAISetup)
     }
 
     typealias Stores = (ModeStore, SettingsStore, KeychainStore, HistoryStore?)
@@ -166,8 +169,23 @@ final class AppModel {
 
     func historyChanged() { historyRevision += 1 }
 
+    /// Whether the mode's AI step cannot run yet (no Apple Intelligence, no key).
+    func needsAISetup(_ mode: Mode) -> Bool {
+        AIReadiness.needsSetup(
+            mode, settings: settings.settings,
+            appleIntelligenceAvailable: AppleIntelligenceFormatter.availability.isAvailable
+        ) { kind in ((try? secrets.apiKey(for: kind)) ?? nil)?.isEmpty == false }
+    }
+
+    /// Opens Settings › AI formatting.
+    func openAISettings() {
+        selectedTab = .settings
+        showsAISettings = true
+    }
+
     /// The app became active: finish Action Button jobs the system stopped.
     func appBecameActive() {
+        modes.fallBackToPlainMode(ifNeedsSetup: needsAISetup)
         guard !isResumingJobs else { return }
         isResumingJobs = true
         Task {

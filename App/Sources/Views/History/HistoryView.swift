@@ -103,7 +103,7 @@ struct HistoryRow: View {
         VStack(alignment: .leading, spacing: 4) {
             switch record.status {
             case .done:
-                Text(record.formattedText)
+                Text(record.formattedText.split(whereSeparator: \.isNewline).joined(separator: " "))
                     .lineLimit(2)
             case .pending:
                 Label("Waiting to be transcribed", systemImage: "hourglass")
@@ -113,16 +113,11 @@ struct HistoryRow: View {
                     .foregroundStyle(.orange)
                     .lineLimit(2)
             }
-            HStack(spacing: 6) {
-                Text(record.modeName)
-                Text("·")
-                Text(record.date, style: .time)
-                if record.audioFileName != nil {
-                    Image(systemName: "waveform").accessibilityLabel("Has audio")
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            // One Text, so large sizes wrap between words, not inside "AM".
+            let audio = record.audioFileName == nil ? Text("") : Text("  \(Image(systemName: "waveform"))")
+            Text("\(record.modeName) · \(Text(record.date, style: .time))\(audio)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .padding(.vertical, 2)
     }

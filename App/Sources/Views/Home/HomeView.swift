@@ -12,7 +12,14 @@ struct HomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 28) {
-                    ModeChips()
+                    VStack(spacing: 8) {
+                        ModeChips()
+                        if model.needsAISetup(model.modes.activeMode) {
+                            Button("Needs AI setup", systemImage: "exclamationmark.triangle") { model.openAISettings() }
+                                .font(.subheadline)
+                                .tint(.orange)
+                        }
+                    }
                     recorder
                     if let result = model.currentResult, !model.pipeline.isBusy {
                         ResultCard(
@@ -21,6 +28,8 @@ struct HomeView: View {
                             onRerun: { mode in rerun(result, with: mode) }
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
+                    } else if !model.pipeline.isBusy {
+                        howTo
                     }
                 }
                 .padding(.horizontal)
@@ -30,15 +39,7 @@ struct HomeView: View {
             }
             .scrollBounceBehavior(.basedOnSize)
             .navigationTitle("KVoice")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Toggle(isOn: $autoCopy) {
-                        Label("Auto-copy", systemImage: autoCopy ? "doc.on.clipboard.fill" : "doc.on.clipboard")
-                    }
-                    .toggleStyle(.button)
-                    .accessibilityHint("Copy each result to the clipboard automatically")
-                }
-            }
+            .task(id: model.historyRevision) { await showLatest() }
             .onChange(of: model.pipeline.level) { _, level in
                 levels.removeFirst()
                 levels.append(CGFloat(level))
@@ -58,6 +59,7 @@ struct HomeView: View {
         VStack(spacing: 20) {
             WaveformView(levels: levels, isActive: model.isRecording)
                 .frame(height: 64)
+                .opacity(model.isRecording ? 1 : 0)
                 .padding(.top, 12)
 
             RecordButton(
@@ -77,6 +79,28 @@ struct HomeView: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// When there is no result to show: a two-line how-to.
+    private var howTo: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Pick a mode. Dictation types what you say; AI modes tidy it up.", systemImage: "square.stack.3d.up")
+            Label("Your text appears here, ready to copy or share.", systemImage: "doc.on.doc")
+        }
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .glassEffect(.regular, in: .rect(cornerRadius: 24))
+    }
+
+    /// Shows the latest history record when there is no current result (or
+    /// it was deleted), so the last text is one tap from Copy.
+    private func showLatest() async {
+        guard let history = model.history else { return }
+        if let current = model.currentResult, (try? await history.record(id: current.record.id)) != nil { return }
+        let latest = (try? await history.all(limit: 1))?.first
+        model.currentResult = latest.flatMap { $0.status == .done ? DictationResult(record: $0) : nil }
     }
 
     private func rerun(_ result: DictationResult, with mode: Mode) {
@@ -113,7 +137,7 @@ struct PhaseStatus: View {
                     Label(notice, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
                 } else {
-                    Text("Hold to talk, or tap to start and tap again to finish.")
+                    Text("Hold to talk, or tap to start and stop.")
                         .foregroundStyle(.secondary)
                 }
             case .recording:

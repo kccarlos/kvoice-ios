@@ -49,6 +49,7 @@ struct HistoryDetailView: View {
             .padding()
         }
         .navigationTitle(record.modeName)
+        .toolbar(.hidden, for: .tabBar)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .bottomBar) {
@@ -139,15 +140,20 @@ struct HistoryDetailView: View {
 }
 
 private struct DetailRow: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     let title: String
     let value: String
 
     var body: some View {
-        HStack {
+        // Value under the title at accessibility sizes.
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout())
+        layout {
             Text(title).foregroundStyle(.secondary)
-            Spacer()
-            Text(value).multilineTextAlignment(.trailing)
+            Spacer(minLength: 0)
+            Text(value).multilineTextAlignment(stacked ? .leading : .trailing)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 8)
     }
 }
