@@ -84,7 +84,7 @@ struct SettingsView: View {
 
                 Section("Privacy") {
                     Label {
-                        Text("Recordings and transcripts stay on this device. Nothing is sent anywhere unless you choose a cloud engine or AI provider, and then only the text or audio of that dictation goes to it with your key. No analytics, no accounts.")
+                        Text("Recordings and transcripts stay on this device. Nothing is sent anywhere unless you choose a cloud engine or AI provider, and then only the audio or transcript of that dictation, plus the mode's instructions for AI formatting, goes to it with your key. No analytics, no accounts.")
                             .font(.callout)
                     } icon: {
                         Image(systemName: "lock.shield").foregroundStyle(.green)
