@@ -79,7 +79,11 @@ public final class ModeStore {
         } else {
             activeModeID = modes.first?.id ?? Mode.BuiltInID.dictation
         }
-        activeModeChosenByUser = defaults.bool(forKey: Self.activeModeChosenKey)
+        // Installs from before the flag existed stored only the identifier,
+        // and only a user choice wrote it then.
+        activeModeChosenByUser = defaults.object(forKey: Self.activeModeChosenKey) == nil
+            ? defaults.string(forKey: Self.activeModeKey) != nil
+            : defaults.bool(forKey: Self.activeModeChosenKey)
     }
 
     public func setActiveMode(id: UUID, chosenByUser: Bool = true) throws {

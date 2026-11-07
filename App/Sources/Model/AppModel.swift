@@ -173,7 +173,7 @@ final class AppModel {
     func needsAISetup(_ mode: Mode) -> Bool {
         AIReadiness.needsSetup(
             mode, settings: settings.settings,
-            appleIntelligenceAvailable: AppleIntelligenceFormatter.availability.isAvailable
+            appleIntelligenceAvailable: AppleIntelligenceFormatter.availability.willBeUsable
         ) { kind in ((try? secrets.apiKey(for: kind)) ?? nil)?.isEmpty == false }
     }
 

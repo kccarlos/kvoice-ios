@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import KVoiceCore
 @testable import KVoiceKit
 
 @MainActor
@@ -45,6 +46,30 @@ import Testing
         store.fallBackToPlainMode { $0.usesAI }
         #expect(store.activeModeID == Mode.BuiltInID.email)
         #expect(makeStore().activeModeChosenByUser)
+    }
+
+    @Test func downloadingAppleIntelligenceNeedsNoSetup() {
+        #expect(AppleIntelligenceAvailability.available.willBeUsable)
+        #expect(AppleIntelligenceAvailability.modelNotReady.willBeUsable)
+        #expect(!AppleIntelligenceAvailability.notEnabled.willBeUsable)
+        #expect(!AppleIntelligenceAvailability.deviceNotEligible.willBeUsable)
+        #expect(!AppleIntelligenceAvailability.unknown.willBeUsable)
+    }
+
+    @Test func modeStoredBeforeTheFlagCountsAsChosen() {
+        defer { directory.cleanUp(); defaults.cleanUp() }
+        #expect(!makeStore().activeModeChosenByUser)  // fresh install
+
+        // An upgrade: only the identifier was stored, by a user choice.
+        defaults.defaults.set(Mode.BuiltInID.email.uuidString, forKey: ModeStore.activeModeKey)
+        let upgraded = makeStore()
+        #expect(upgraded.activeModeChosenByUser)
+        upgraded.fallBackToPlainMode { $0.usesAI }
+        #expect(upgraded.activeModeID == Mode.BuiltInID.email)
+
+        // The fallback's own explicit false stays false.
+        defaults.defaults.set(false, forKey: ModeStore.activeModeChosenKey)
+        #expect(!makeStore().activeModeChosenByUser)
     }
 
     @Test func actionButtonFromModelIdentifier() {

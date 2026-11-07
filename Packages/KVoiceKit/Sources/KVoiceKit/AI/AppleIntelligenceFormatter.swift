@@ -12,6 +12,10 @@ public enum AppleIntelligenceAvailability: Sendable, Hashable {
 
     public var isAvailable: Bool { self == .available }
 
+    /// Available, or will be once the model finishes downloading: AI modes
+    /// do not need setup.
+    public var willBeUsable: Bool { self == .available || self == .modelNotReady }
+
     public var message: String {
         switch self {
         case .available: "Apple Intelligence is ready."
