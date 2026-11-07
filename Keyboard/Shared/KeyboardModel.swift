@@ -11,8 +11,12 @@ protocol KeyboardHost: AnyObject {
     var needsInputModeSwitchKey: Bool { get }
     var documentContextBeforeInput: String? { get }
     var returnKeyType: UIReturnKeyType? { get }
+    var autocapitalizes: Bool { get }
     func insertText(_ text: String)
     func deleteBackward()
+    func adjustTextPosition(byCharacterOffset offset: Int)
+    /// Input click, plus a light haptic with Full Access.
+    func playKeyFeedback()
     /// Wires the globe key (tap: next keyboard, long press: keyboard list).
     func attachInputModeSwitch(to button: UIButton)
     func openURL(_ url: URL, completion: @escaping @MainActor @Sendable (Bool) -> Void)
@@ -31,6 +35,13 @@ final class KeyboardModel {
     private(set) var showsGlobeKey = false
     private(set) var canUndo = false
     private(set) var returnKeyType: UIReturnKeyType = .default
+    private(set) var keys = KeyboardKeys()
+    /// When the current recording started, for the elapsed time.
+    private(set) var recordingSince: Date?
+    /// The mic was tapped without Full Access.
+    var showsFullAccessCard = false
+    /// An error the user dismissed (or typed past): the chips come back.
+    @ObservationIgnored private var dismissedFailure: KeyboardDictation.Phase?
 
     @ObservationIgnored private weak var host: (any KeyboardHost)?
     @ObservationIgnored private let mailbox: DictationHandoff
@@ -57,6 +68,7 @@ final class KeyboardModel {
     /// The keyboard appeared: read shared state and start listening.
     func activate() {
         refreshTraits()
+        updateShift()
         guard hasFullAccess else { return }
         if modeStore == nil { modeStore = makeModeStore() }
         reloadModes()
@@ -76,6 +88,7 @@ final class KeyboardModel {
     /// The keyboard went away (the user opened KVoice or switched
     /// keyboards): stop observing; `activate` re-reads everything.
     func deactivate() {
+        typedThisSession = false
         observers.forEach { $0.cancel() }
         observers = []
         ticker?.cancel()
@@ -114,6 +127,13 @@ final class KeyboardModel {
     /// The text or selection changed outside the keyboard.
     func textDidChange() {
         refreshTraits()
+        updateShift()
+    }
+
+    /// Shift follows the text before the cursor; not on layout passes,
+    /// where it would undo the user's own shift tap.
+    private func updateShift() {
+        keys.textChanged(context: host?.documentContextBeforeInput, autocapitalizes: host?.autocapitalizes ?? true)
     }
 
     private func observe(
@@ -148,7 +168,11 @@ final class KeyboardModel {
     // MARK: Dictation
 
     func micTapped() {
-        guard hasFullAccess else { return }
+        guard hasFullAccess else {
+            showsFullAccessCard = true
+            return
+        }
+        if showsActionButtonTip { dismissTip() }
         reloadModes()
         let now = Date.now
         let activity = mailbox.readActivity()
@@ -171,11 +195,14 @@ final class KeyboardModel {
 
     private static let tipDismissedKey = "keyboard.actionButtonTipDismissed"
     private(set) var tipDismissed = AppGroup.defaults.bool(forKey: tipDismissedKey)
+    /// Typing hides the tip until the keyboard comes back, so it never
+    /// keeps the mode chips away for long.
+    private var typedThisSession = false
 
     /// A one-line hint on the idle keyboard that the Action Button dictates
     /// without leaving the app. Only where the mic would open KVoice.
     var showsActionButtonTip: Bool {
-        hasFullAccess && !tipDismissed && !dictation.phase.isActive
+        hasFullAccess && !tipDismissed && !typedThisSession && !dictation.phase.isActive
             && dictation.external == .none && !dictation.isStandby
             && !(dictation.phase == .inserted)
     }
@@ -183,6 +210,16 @@ final class KeyboardModel {
     func dismissTip() {
         tipDismissed = true
         AppGroup.defaults.set(true, forKey: Self.tipDismissedKey)
+    }
+
+    /// The error shown instead of the mode chips, if any.
+    var failureMessage: String? {
+        guard case .failed(let message) = phase, phase != dismissedFailure else { return nil }
+        return message
+    }
+
+    func dismissFailure() {
+        if failureMessage != nil { dismissedFailure = phase }
     }
 
     func cancelTapped() {
@@ -208,6 +245,12 @@ final class KeyboardModel {
     private func send(_ event: KeyboardDictation.Event) {
         let effects = dictation.handle(event)
         effects.forEach(perform)
+        if case .recording = dictation.phase {
+            if recordingSince == nil { recordingSince = .now }
+        } else if recordingSince != nil {
+            recordingSince = nil
+        }
+        if !effects.isEmpty { updateShift() }
         updateTicker()
         updateUndo()
     }
@@ -280,20 +323,25 @@ final class KeyboardModel {
         host?.attachInputModeSwitch(to: button)
     }
 
-    func insertSpace() { type(" ") }
-    func insertReturn() { type("\n") }
-
-    func deleteBackward() {
-        host?.deleteBackward()
-        edited()
+    func tap(_ key: KeyboardKeys.Key) {
+        host?.playKeyFeedback()
+        dismissFailure()
+        if !typedThisSession { typedThisSession = true }
+        let edits = keys.tap(key, context: host?.documentContextBeforeInput, now: .now)
+        for edit in edits {
+            switch edit {
+            case .insert(let text): host?.insertText(text)
+            case .deleteBackward: host?.deleteBackward()
+            }
+        }
+        guard !edits.isEmpty else { return }
+        if dictation.lastInsertion != nil { send(.userEdited) }
+        updateShift()
     }
 
-    private func type(_ text: String) {
-        host?.insertText(text)
-        edited()
-    }
-
-    private func edited() {
+    /// Space bar drag: moves the cursor.
+    func moveCursor(by offset: Int) {
+        host?.adjustTextPosition(byCharacterOffset: offset)
         if dictation.lastInsertion != nil { send(.userEdited) }
     }
 }

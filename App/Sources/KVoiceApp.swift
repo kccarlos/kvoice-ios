@@ -16,6 +16,8 @@ struct KVoiceApp: App {
             #if DEBUG
             if let state = KeyboardPreviewScreen.requestedState {
                 KeyboardPreviewScreen(state: state)
+            } else if TypingFieldScreen.isRequested {
+                TypingFieldScreen()
             } else {
                 root
             }

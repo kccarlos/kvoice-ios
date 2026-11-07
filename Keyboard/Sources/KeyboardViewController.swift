@@ -8,8 +8,14 @@ import UIKit
 final class KeyboardViewController: UIInputViewController, KeyboardHost {
     private lazy var model = KeyboardModel(host: self)
     private lazy var feedback = UIImpactFeedbackGenerator(style: .medium)
+    private lazy var keyFeedback = UIImpactFeedbackGenerator(style: .light)
 
-    static let preferredHeight: CGFloat = 260
+    override func loadView() {
+        // Adopts UIInputViewAudioFeedback, so key taps can click.
+        let input = KeyboardInputView(frame: .zero, inputViewStyle: .keyboard)
+        inputView = input
+        view = input
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -21,7 +27,7 @@ final class KeyboardViewController: UIInputViewController, KeyboardHost {
         host.view.translatesAutoresizingMaskIntoConstraints = false
         // The system owns the input view's height; a high-priority (not
         // required) constraint on it requests ours.
-        let height = view.heightAnchor.constraint(equalToConstant: Self.preferredHeight)
+        let height = view.heightAnchor.constraint(equalToConstant: KeyboardView.height)
         height.priority = UILayoutPriority(999)
         NSLayoutConstraint.activate([
             host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -64,9 +70,18 @@ final class KeyboardViewController: UIInputViewController, KeyboardHost {
 
     var documentContextBeforeInput: String? { textDocumentProxy.documentContextBeforeInput }
     var returnKeyType: UIReturnKeyType? { textDocumentProxy.returnKeyType }
+    var autocapitalizes: Bool { (textDocumentProxy.autocapitalizationType ?? .sentences) != .none }
 
     func insertText(_ text: String) { textDocumentProxy.insertText(text) }
     func deleteBackward() { textDocumentProxy.deleteBackward() }
+    func adjustTextPosition(byCharacterOffset offset: Int) {
+        textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
+    }
+
+    func playKeyFeedback() {
+        UIDevice.current.playInputClick()
+        if hasFullAccess { keyFeedback.impactOccurred() }
+    }
 
     func attachInputModeSwitch(to button: UIButton) {
         button.addTarget(self, action: #selector(handleInputModeList(from:with:)), for: .allTouchEvents)
@@ -81,4 +96,8 @@ final class KeyboardViewController: UIInputViewController, KeyboardHost {
         guard hasFullAccess else { return }
         feedback.impactOccurred(intensity: haptic == .start ? 0.8 : 0.6)
     }
+}
+
+private final class KeyboardInputView: UIInputView, UIInputViewAudioFeedback {
+    var enableInputClicksWhenVisible: Bool { true }
 }
