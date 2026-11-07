@@ -57,11 +57,6 @@ struct HomeView: View {
 
     private var recorder: some View {
         VStack(spacing: 20) {
-            WaveformView(levels: levels, isActive: model.isRecording)
-                .frame(height: 64)
-                .opacity(model.isRecording ? 1 : 0)
-                .padding(.top, 12)
-
             RecordButton(
                 isRecording: model.isRecording,
                 isBusy: model.pipeline.isBusy && !model.isRecording,
@@ -69,6 +64,13 @@ struct HomeView: View {
                 onStart: { Task { await model.startDictation() } },
                 onStop: { Task { await model.stopDictation() } }
             )
+
+            // Below the button, so the button never moves under a finger; at
+            // rest it takes no room and the result card's actions fit.
+            if model.isRecording {
+                WaveformView(levels: levels, isActive: true)
+                    .frame(height: 64)
+            }
 
             PhaseStatus(autoCopy: autoCopy)
                 .frame(minHeight: 44, alignment: .top)

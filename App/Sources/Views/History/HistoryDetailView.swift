@@ -49,6 +49,8 @@ struct HistoryDetailView: View {
             .padding()
         }
         .navigationTitle(record.modeName)
+        // A solid edge under the bottom bar, so text never shows through it.
+        .scrollEdgeEffectStyle(.hard, for: .bottom)
         .toolbar(.hidden, for: .tabBar)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

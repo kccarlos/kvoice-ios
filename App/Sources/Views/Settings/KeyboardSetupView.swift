@@ -35,15 +35,16 @@ struct KeyboardSetupSteps: View {
 
     var body: some View {
         ForEach(Array(Self.steps.enumerated()), id: \.offset) { index, step in
-            HStack(spacing: 14) {
-                Text("\(index + 1)")
-                    .font(.callout.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 28, height: 28)
-                    .background(Color.accentColor, in: .circle)
-                if typeSize.isAccessibilitySize {
-                    Text(step.1)  // no room for the icon
-                } else {
+            if typeSize.isAccessibilitySize {
+                // A fixed-size number circle cannot hold the large digit.
+                Text("\(index + 1). \(step.1)")
+            } else {
+                HStack(spacing: 14) {
+                    Text("\(index + 1)")
+                        .font(.callout.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 28, height: 28)
+                        .background(Color.accentColor, in: .circle)
                     Label(step.1, systemImage: step.0)
                 }
             }
