@@ -193,6 +193,7 @@ final class KeyboardModel {
 
     // MARK: Action Button tip
 
+    private static let hasActionButton = DeviceModel.hasActionButton()
     private static let tipDismissedKey = "keyboard.actionButtonTipDismissed"
     private(set) var tipDismissed = AppGroup.defaults.bool(forKey: tipDismissedKey)
     /// Typing hides the tip until the keyboard comes back, so it never
@@ -200,9 +201,10 @@ final class KeyboardModel {
     private var typedThisSession = false
 
     /// A one-line hint on the idle keyboard that the Action Button dictates
-    /// without leaving the app. Only where the mic would open KVoice.
+    /// without leaving the app. Only on iPhones with an Action Button, where
+    /// the mic would open KVoice.
     var showsActionButtonTip: Bool {
-        hasFullAccess && !tipDismissed && !typedThisSession && !dictation.phase.isActive
+        Self.hasActionButton && hasFullAccess && !tipDismissed && !typedThisSession && !dictation.phase.isActive
             && dictation.external == .none && !dictation.isStandby
             && !(dictation.phase == .inserted)
     }
