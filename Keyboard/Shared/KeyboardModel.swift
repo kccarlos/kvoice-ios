@@ -41,7 +41,7 @@ final class KeyboardModel {
     /// The mic was tapped without Full Access.
     var showsFullAccessCard = false
     /// An error the user dismissed (or typed past): the chips come back.
-    @ObservationIgnored private var dismissedFailure: KeyboardDictation.Phase?
+    private var dismissedFailure: KeyboardDictation.Phase?
 
     @ObservationIgnored private weak var host: (any KeyboardHost)?
     @ObservationIgnored private let mailbox: DictationHandoff
@@ -249,6 +249,10 @@ final class KeyboardModel {
             if recordingSince == nil { recordingSince = .now }
         } else if recordingSince != nil {
             recordingSince = nil
+        }
+        if case .failed = dictation.phase {} else if dismissedFailure != nil {
+            // A later failure with the same message shows again.
+            dismissedFailure = nil
         }
         if !effects.isEmpty { updateShift() }
         updateTicker()
