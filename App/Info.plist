@@ -38,7 +38,7 @@
 	<key>KVoiceKeychainGroup</key>
 	<string>$(AppIdentifierPrefix)$(KVOICE_KEYCHAIN_GROUP)</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>KVoice records your voice only while you dictate, to turn it into text.</string>
+	<string>KVoice records your voice to turn it into text. After a dictation from the KVoice keyboard it can keep the microphone ready for a few minutes; you can turn this off in Settings.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>KVoice uses on-device speech recognition to transcribe your dictation.</string>
 	<key>NSSupportsLiveActivities</key>
@@ -57,13 +57,6 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 </dict>
 </plist>
