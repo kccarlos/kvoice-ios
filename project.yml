@@ -165,6 +165,18 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.kccarlos.kvoice.ios.tests
         GENERATE_INFOPLIST_FILE: YES
 
+  KVoiceUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: KVoice
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.kccarlos.kvoice.ios.uitests
+        GENERATE_INFOPLIST_FILE: YES
+
 schemes:
   KVoice:
     build:
@@ -175,3 +187,13 @@ schemes:
         - KVoiceKitTests
     archive:
       config: Release
+  # Screenshot tour (Scripts/dev/tour.sh); kept out of the KVoice scheme so
+  # CI never runs it.
+  KVoiceUITour:
+    build:
+      targets:
+        KVoice: all
+        KVoiceUITests: [test]
+    test:
+      targets:
+        - KVoiceUITests
