@@ -41,10 +41,11 @@ final class AppModel {
     @ObservationIgnored private var systemObservers: [any NSObjectProtocol] = []
 
     private init() {
-        let modes = ModeStore()
-        let settings = SettingsStore()
-        let secrets = KeychainStore.shared()
-        let history = try? HistoryStore()
+        #if DEBUG
+        let (modes, settings, secrets, history) = DemoData.isEnabled ? DemoData.stores() : Self.stores()
+        #else
+        let (modes, settings, secrets, history) = Self.stores()
+        #endif
         let recorder = AudioRecorder()
         let whisperModels = WhisperModelManager()
         self.modes = modes
@@ -72,6 +73,12 @@ final class AppModel {
         observeAudioSession()
         handoff.appLaunched()
         liveActivity.appLaunched(activity: handoff.activity)
+    }
+
+    typealias Stores = (ModeStore, SettingsStore, KeychainStore, HistoryStore?)
+
+    private static func stores() -> Stores {
+        (ModeStore(), SettingsStore(), KeychainStore.shared(), try? HistoryStore())
     }
 
     // MARK: Dictation (Home, intents, widgets)

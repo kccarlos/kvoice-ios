@@ -47,6 +47,11 @@ struct KVoiceApp: App {
             .task {
                 if let url = AppPreferences.launchURL { model.handoff.handle(url) }
                 #if DEBUG
+                if DemoData.isEnabled, let history = model.history {
+                    await DemoData.seed(history)
+                    model.historyChanged()
+                }
+                if AppPreferences.initialScreen == "handoff" { model.handoff.isPresentingRecorder = true }
                 if let file = AppModel.debugTranscribeFile { await model.debugRunShortcut(file: file) }
                 #endif
                 await model.applyRetention()

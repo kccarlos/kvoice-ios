@@ -8,7 +8,12 @@ enum AppPreferences {
     static let keepAliveMinutesKey = "pref.keepAliveMinutes"
     static let onboardingDoneKey = "pref.onboardingDone"
 
-    static var store: UserDefaults { AppGroup.defaults }
+    static var store: UserDefaults {
+        #if DEBUG
+        if DemoData.isEnabled { return DemoData.defaults }
+        #endif
+        return AppGroup.defaults
+    }
 
     /// Copy every finished dictation to the clipboard.
     static var autoCopy: Bool {
@@ -37,7 +42,8 @@ enum AppPreferences {
         return URL(string: launchArguments[index + 1])
     }
 
-    /// `-kvoiceScreen actionButton`: open a Settings screen (screenshots).
+    /// `-kvoiceScreen actionButton|handoff`: open a Settings screen, or (debug)
+    /// the keyboard handoff recorder, for screenshots.
     static var initialScreen: String? {
         guard let index = launchArguments.firstIndex(of: "-kvoiceScreen"),
               launchArguments.indices.contains(index + 1) else { return nil }
