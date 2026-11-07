@@ -89,11 +89,17 @@ struct SettingsView: View {
                     } icon: {
                         Image(systemName: "lock.shield").foregroundStyle(.green)
                     }
+                    ForEach(settings.settings.allowedCloudProviders?.sorted { $0.rawValue < $1.rawValue } ?? []) { kind in
+                        Button("Stop Sending to \(kind.displayName)", role: .destructive) { model.revokeCloud(kind) }
+                    }
                 }
 
                 Section("About") {
                     LabeledContent("Version", value: Self.version)
                     LabeledContent("License", value: "MIT")
+                    Link("Privacy Policy", destination: URL(string: "https://github.com/kccarlos/kvoice-ios/blob/main/Docs/Privacy.md")!)
+                    Link("Support", destination: URL(string: "https://github.com/kccarlos/kvoice-ios/blob/main/Docs/Support.md")!)
+                    NavigationLink("Third-Party Licenses") { LicensesView() }
                     NavigationLink("Diagnostics") { DiagnosticsView() }
                 }
             }
@@ -118,6 +124,22 @@ struct SettingsView: View {
         let short = info?["CFBundleShortVersionString"] as? String ?? "?"
         let build = info?["CFBundleVersion"] as? String ?? "?"
         return "\(short) (\(build))"
+    }
+}
+
+/// The license texts of the bundled open-source code.
+struct LicensesView: View {
+    var body: some View {
+        ScrollView {
+            Text((Bundle.main.url(forResource: "ThirdPartyLicenses", withExtension: "txt"))
+                .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? "")
+                .font(.footnote.monospaced())
+                .textSelection(.enabled)
+                .padding()
+        }
+        .navigationTitle("Third-Party Licenses")
+        .toolbar(.hidden, for: .tabBar)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
