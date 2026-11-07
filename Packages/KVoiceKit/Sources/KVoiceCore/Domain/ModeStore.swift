@@ -22,12 +22,16 @@ public final class ModeStore {
 
     public private(set) var modes: [Mode]
     public private(set) var activeModeID: UUID
+    /// False until someone picks a mode (the automatic Dictation fallback
+    /// does not count), so the fallback never overrides a real choice.
+    public private(set) var activeModeChosenByUser = false
 
     @ObservationIgnored private let fileURL: URL
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let notifies: Bool
 
     static let activeModeKey = "activeModeID"
+    static let activeModeChosenKey = "activeModeChosenByUser"
     static let fileName = "modes.json"
 
     /// - Parameters:
@@ -75,13 +79,24 @@ public final class ModeStore {
         } else {
             activeModeID = modes.first?.id ?? Mode.BuiltInID.dictation
         }
+        activeModeChosenByUser = defaults.bool(forKey: Self.activeModeChosenKey)
     }
 
-    public func setActiveMode(id: UUID) throws {
+    public func setActiveMode(id: UUID, chosenByUser: Bool = true) throws {
         guard modes.contains(where: { $0.id == id }) else { throw StoreError.notFound }
         activeModeID = id
+        activeModeChosenByUser = chosenByUser
         defaults.set(id.uuidString, forKey: Self.activeModeKey)
+        defaults.set(chosenByUser, forKey: Self.activeModeChosenKey)
         post(.activeModeChanged)
+    }
+
+    /// When the active mode needs AI that is not set up and nobody chose it,
+    /// activates the first plain mode (Dictation). Never switches back.
+    public func fallBackToPlainMode(ifNeedsSetup needsSetup: (Mode) -> Bool) {
+        guard !activeModeChosenByUser, needsSetup(activeMode),
+              let plain = modes.first(where: { !$0.usesAI }) else { return }
+        try? setActiveMode(id: plain.id, chosenByUser: false)
     }
 
     /// Adds a new mode, or replaces the mode with the same identifier.
