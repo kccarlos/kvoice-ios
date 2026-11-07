@@ -395,7 +395,7 @@ import Testing
         #expect(standby(until: 10).activity.keyboardRoute(now: at(11)) == .openApp, "expired standby")
         #expect(appRecording().activity.keyboardRoute(now: at(1)) == .stop(id(1)))
         #expect(shortcutRecording().activity.keyboardRoute(now: at(1))
-            == .blocked("Recording with the Action Button — tap Stop in the recording panel"))
+            == .blocked("Recording in Shortcuts — tap Stop there"))
         #expect(shortcutRecording().activity.keyboardRoute(now: at(Lease.shortcutRecording)) == .openApp)
         #expect(processing().activity.keyboardRoute(now: at(1)) == .blocked("Transcribing…"))
         var formatting = processing()

@@ -130,7 +130,7 @@ public struct DictationActivity: Codable, Sendable, Hashable {
     }
 
     public enum Message {
-        public static let shortcutRecordingKeyboard = "Recording with the Action Button — tap Stop in the recording panel"
+        public static let shortcutRecordingKeyboard = "Recording in Shortcuts — tap Stop there"
         public static let shortcutRecordingApp = "Recording with the Action Button"
         public static let busy = "KVoice is still working on the previous dictation."
         public static let transcribing = "Transcribing…"
