@@ -161,7 +161,7 @@ struct APIKeyField: View {
 
     private func store(_ key: String?) {
         do {
-            try model.secrets.setAPIKey(key, for: provider)
+            try model.setAPIKey(key, for: provider)
             load()
         } catch {
             errorMessage = error.localizedDescription

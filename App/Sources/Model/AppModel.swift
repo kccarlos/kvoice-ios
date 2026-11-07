@@ -34,6 +34,9 @@ final class AppModel {
     var notice: String?
     /// Settings shows AI formatting ("Needs AI setup" links).
     var showsAISettings = false
+    /// Providers with an API key, cached so views never read the Keychain
+    /// while rendering. Updated by `setAPIKey` and when the app activates.
+    private(set) var providersWithKey: Set<ProviderKind> = []
 
     /// Transcribe Audio jobs running in this process (not to be resumed).
     @ObservationIgnored var runningJobIDs: Set<UUID> = []
@@ -75,6 +78,7 @@ final class AppModel {
         observeAudioSession()
         handoff.appLaunched()
         liveActivity.appLaunched(activity: handoff.activity)
+        refreshAPIKeys()
         modes.fallBackToPlainMode(ifNeedsSetup: needsAISetup)
     }
 
@@ -174,7 +178,17 @@ final class AppModel {
         AIReadiness.needsSetup(
             mode, settings: settings.settings,
             appleIntelligenceAvailable: AppleIntelligenceFormatter.availability.willBeUsable
-        ) { kind in ((try? secrets.apiKey(for: kind)) ?? nil)?.isEmpty == false }
+        ) { providersWithKey.contains($0) }
+    }
+
+    func refreshAPIKeys() {
+        providersWithKey = Set(ProviderKind.allCases.filter { ((try? secrets.apiKey(for: $0)) ?? nil)?.isEmpty == false })
+    }
+
+    /// Stores or deletes a key and updates `providersWithKey`.
+    func setAPIKey(_ key: String?, for provider: ProviderKind) throws {
+        defer { refreshAPIKeys() }
+        try secrets.setAPIKey(key, for: provider)
     }
 
     // MARK: Cloud consent (App Review 5.1.2(i))
@@ -205,6 +219,7 @@ final class AppModel {
 
     /// The app became active: finish Action Button jobs the system stopped.
     func appBecameActive() {
+        refreshAPIKeys()
         modes.fallBackToPlainMode(ifNeedsSetup: needsAISetup)
         guard !isResumingJobs else { return }
         isResumingJobs = true
