@@ -143,6 +143,15 @@ final class TourUITests: XCTestCase {
             shot("\(number)-settings-\(row.lowercased().replacingOccurrences(of: " ", with: ""))-scrolled")
             back()
         }
+        // Choosing a cloud engine asks for consent; declining stays on device.
+        tapText("Transcription")
+        tapText("Cloud (your key)")
+        let consent = app.staticTexts["Send your dictation to OpenAI?"]
+        XCTAssertTrue(consent.waitForExistence(timeout: 5), "no consent sheet")
+        shot("67-cloudconsent-openai")
+        tapScrolling(to: app.buttons["Don't Allow, Stay On Device"])
+        XCTAssertTrue(consent.waitForNonExistence(timeout: 5), "consent sheet stayed")
+        back()
         tapText("Set up the KVoice keyboard")
         shot("63-settings-keyboard")
         back()
