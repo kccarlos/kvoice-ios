@@ -61,11 +61,16 @@ final class TourUITests: XCTestCase {
             ("ai", "AI formatting (optional)"), ("keyboard", "Add the KVoice keyboard"),
             ("actionbutton", "Action Button (optional)"),
         ]
+        // iPhones without an Action Button finish after the keyboard page.
         for (index, (page, title)) in pages.enumerated() {
-            if page == "actionbutton" { dismissSystemAlert() }  // notification permission
             XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 5), "onboarding \(page) did not appear")
             shot(String(format: "%02d-onboarding-%@", 1 + index, page))
-            let next = app.buttons[index == pages.count - 1 ? "Start Dictating" : "Continue"]
+            let finish = app.buttons["Start Dictating"]
+            if finish.exists {
+                finish.tap()
+                break
+            }
+            let next = app.buttons["Continue"]
             XCTAssertTrue(next.waitForExistence(timeout: 5), "onboarding \(page): no next button")
             next.tap()
         }
@@ -141,7 +146,7 @@ final class TourUITests: XCTestCase {
         tapText("Set up the KVoice keyboard")
         shot("63-settings-keyboard")
         back()
-        tapText("Action Button")
+        tapScrolling(to: app.buttons["actionButtonSettings"])  // "Control Center and Back Tap" without one
         shot("64-settings-actionbutton")
         app.swipeUp()
         shot("64-settings-actionbutton-scrolled")
@@ -185,13 +190,17 @@ final class TourUITests: XCTestCase {
         let element = contains
             ? app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
             : app.staticTexts[text].firstMatch
+        tapScrolling(to: element)
+    }
+
+    private func tapScrolling(to element: XCUIElement) {
         _ = element.waitForExistence(timeout: 5)
         var swipes = 0
         while !element.isHittable, swipes < 8 {
             app.swipeUp()
             swipes += 1
         }
-        XCTAssertTrue(element.isHittable, "\(text) not reachable")
+        XCTAssertTrue(element.isHittable, "\(element) not reachable")
         element.tapIfExists()
     }
 

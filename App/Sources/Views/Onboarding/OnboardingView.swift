@@ -10,11 +10,13 @@ struct OnboardingView: View {
     enum Step: Int, CaseIterable { case welcome, microphone, engine, ai, keyboard, actionButton }
     @State private var step: Step = .welcome
     @State private var micGranted = AudioRecorder.hasPermission
+    /// The Action Button page only on iPhones that have one.
+    private let steps = Step.allCases.filter { $0 != .actionButton || DeviceModel.hasActionButton() }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                ForEach(Step.allCases, id: \.self) { item in
+                ForEach(steps, id: \.self) { item in
                     Capsule()
                         .fill(item.rawValue <= step.rawValue ? Color.accentColor : Color.secondary.opacity(0.25))
                         .frame(height: 4)
@@ -107,26 +109,33 @@ struct OnboardingView: View {
         case .actionButton:
             OnboardingPage(
                 icon: "button.vertical.right.press", title: "Action Button (optional)",
-                text: "Dictate from any app without switching to KVoice. You can set this up later in Settings › Action Button."
+                text: "You can set this up later in Settings › Action Button."
             ) {
                 VStack(alignment: .leading, spacing: 14) {
                     ActionButtonExplainer()
-                    ActionButtonSetupSteps()
+                    ToggleSetupSteps()
                 }
                 .onAppear { JobNotifier.requestAuthorization() }
             }
         }
     }
 
+    private var index: Int { steps.firstIndex(of: step) ?? 0 }
+
     private var footer: some View {
         HStack {
             if step != .welcome {
-                Button("Back") { step = Step(rawValue: step.rawValue - 1) ?? .welcome }
+                Button("Back") { step = steps[max(index - 1, 0)] }
                     .buttonStyle(.glass)
             }
             Spacer()
-            Button(step == Step.allCases.last ? "Start Dictating" : "Continue") {
-                if let next = Step(rawValue: step.rawValue + 1) { step = next } else { onFinish() }
+            Button(step == steps.last ? "Start Dictating" : "Continue") {
+                if step == steps.last {
+                    JobNotifier.requestAuthorization()  // for the Action Button or Control Center job alerts
+                    onFinish()
+                } else {
+                    step = steps[index + 1]
+                }
             }
             .buttonStyle(.glassProminent)
             .controlSize(.large)

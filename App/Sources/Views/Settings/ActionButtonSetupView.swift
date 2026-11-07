@@ -7,25 +7,21 @@ enum KVoiceShortcutLink {
     static let url = ""
 }
 
-/// Settings › Action Button: how to set up the dictation shortcut, and a
-/// debug view of the shared dictation state.
+/// Settings › Action Button (Control Center and Back Tap on iPhones
+/// without one): how to set up Toggle Dictation.
 struct ActionButtonSetupView: View {
     var body: some View {
         List {
             Section {
                 ActionButtonExplainer()
             }
-            Section {
+            Section("Set up") {
                 ToggleSetupSteps()
-            } header: {
-                Text("Set up")
-            } footer: {
-                Text("Control Center and the Lock Screen can also hold the Toggle Dictation control.")
             }
             Section {
-                DisclosureGroup("Advanced: Record Audio shortcut") {
+                DisclosureGroup("If Toggle Dictation does not work") {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("A manual shortcut that records with the Shortcuts app instead. Use it only if Toggle Dictation does not work for you.")
+                        Text("Make a shortcut that records with the Shortcuts app instead:")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                         ActionButtonSetupSteps()
@@ -33,16 +29,15 @@ struct ActionButtonSetupView: View {
                     .padding(.vertical, 4)
                 }
             }
-            Section {
+            #if DEBUG
+            Section("Debug") {
                 ActionButtonStateTester()
-            } header: {
-                Text("Test")
-            } footer: {
-                Text("Shows what Begin Dictation (the advanced shortcut) would answer now, without starting anything.")
             }
+            #endif
         }
-        .navigationTitle("Action Button")
+        .navigationTitle(DeviceModel.hasActionButton() ? "Action Button" : "Controls")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .onAppear { JobNotifier.requestAuthorization() }
     }
 }
@@ -52,11 +47,12 @@ struct ActionButtonExplainer: View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Dictate from any app", systemImage: "button.vertical.right.press")
                 .font(.headline)
-            Text("Press the Action Button once to start recording and again to stop. KVoice transcribes, copies the text to the clipboard, and types it when the KVoice keyboard is open. Everything is saved in History.")
-            Text("In any app with the KVoice keyboard open: press the Action Button, speak, press again, and the text is typed. The keyboard mic then works without leaving the app while KVoice keeps listening (see Keep listening for the keyboard in Settings). Tap ⏻ on the keyboard, or End in the Live Activity, to end the session.")
-            Text("KVoice tries to start in the background so the app you're in stays in front. If iOS refuses, KVoice opens briefly to start (on the Lock Screen it asks for Face ID) and you can switch back. A Live Activity shows the recording; its Stop button does the same as the second press.")
-                .foregroundStyle(.secondary)
-            Text("Long recordings, or a mode that needs more time than iOS gives a background task, finish in KVoice instead: you are asked to open it when you stop.")
+            if DeviceModel.hasActionButton() {
+                Text("Press the Action Button to start, and press it again to stop. The text is copied, and typed for you when the KVoice keyboard is open.")
+            } else {
+                Text("This iPhone has no Action Button. Put Toggle Dictation in Control Center, on the Lock Screen or on Back Tap: tap once to start, again to stop. The text is copied, and typed for you when the KVoice keyboard is open.")
+            }
+            Text("KVoice may open for a moment to start listening. Switch back and keep going.")
                 .foregroundStyle(.secondary)
         }
         .font(.callout)
@@ -64,16 +60,22 @@ struct ActionButtonExplainer: View {
     }
 }
 
-/// The one-step setup: pick Toggle Dictation in the Action Button settings.
+/// Where to put the Toggle Dictation control.
 struct ToggleSetupSteps: View {
-    static let steps: [String] = [
+    static let actionButtonSteps: [String] = [
         "Open Settings › Action Button.",
-        "Swipe to Controls, tap the control and choose KVoice › Toggle Dictation. Or swipe to Shortcut and choose KVoice › Toggle Dictation.",
-        "Press the Action Button to start dictating, and press it again to stop. The text is copied."
+        "Swipe to Controls and choose KVoice › Toggle Dictation.",
+        "Press once to start dictating, and again to stop. Control Center and the Lock Screen can hold it too."
+    ]
+    static let otherSteps: [String] = [
+        "Control Center: touch and hold an empty spot, tap Add a Control and choose Toggle Dictation.",
+        "Lock Screen: touch and hold it, tap Customize › Lock Screen, tap a control at the bottom and choose Toggle Dictation.",
+        "Back Tap: in Shortcuts, make a shortcut with KVoice › Toggle Dictation, then pick it in Settings › Accessibility › Touch › Back Tap."
     ]
 
     var body: some View {
-        ForEach(Array(Self.steps.enumerated()), id: \.offset) { index, step in
+        let steps = DeviceModel.hasActionButton() ? Self.actionButtonSteps : Self.otherSteps
+        ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
             StepRow(number: index + 1, text: step)
         }
     }
@@ -123,6 +125,7 @@ struct ActionButtonSetupSteps: View {
     }
 }
 
+#if DEBUG
 /// The current shared state and the gate's answer, for debugging.
 struct ActionButtonStateTester: View {
     @Environment(AppModel.self) private var model
@@ -160,6 +163,8 @@ struct ActionButtonStateTester: View {
         }
     }
 }
+
+#endif
 
 extension DictationGateOutcome {
     var displayName: String {

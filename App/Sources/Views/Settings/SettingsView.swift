@@ -10,6 +10,7 @@ struct SettingsView: View {
 
     var body: some View {
         @Bindable var settings = model.settings
+        @Bindable var model = model
         NavigationStack {
             Form {
                 Section("Speech and AI") {
@@ -70,13 +71,15 @@ struct SettingsView: View {
                         showsActionButton = true
                     } label: {
                         HStack {
-                            SettingsRow(title: "Action Button", detail: nil, icon: "button.vertical.right.press", color: .orange)
+                            SettingsRow(title: DeviceModel.hasActionButton() ? "Action Button" : "Control Center and Back Tap",
+                                        detail: nil, icon: "button.vertical.right.press", color: .orange)
                             Image(systemName: "chevron.right")
                                 .font(.footnote.weight(.semibold))
                                 .foregroundStyle(.tertiary)
                         }
                     }
                     .foregroundStyle(.primary)
+                    .accessibilityIdentifier("actionButtonSettings")
                 }
 
                 Section("Privacy") {
@@ -96,6 +99,7 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationDestination(isPresented: $showsActionButton) { ActionButtonSetupView() }
+            .navigationDestination(isPresented: $model.showsAISettings) { AIProviderSettingsView() }
             .confirmationDialog("Delete all history?", isPresented: $confirmingDeleteHistory, titleVisibility: .visible) {
                 Button("Delete All", role: .destructive) {
                     Task {
@@ -118,12 +122,25 @@ struct SettingsView: View {
 }
 
 struct SettingsRow: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     let title: String
     let detail: String?
     let icon: String
     let color: Color
 
     var body: some View {
+        if typeSize.isAccessibilitySize {
+            // No room for icon, title and value on one line.
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                if let detail { Text(detail).foregroundStyle(.secondary) }
+            }
+        } else {
+            row
+        }
+    }
+
+    private var row: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.callout.weight(.semibold))
@@ -166,6 +183,7 @@ struct AIProviderSettingsView: View {
             }
         }
         .navigationTitle("AI formatting")
+        .toolbar(.hidden, for: .tabBar)
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -259,6 +277,7 @@ struct TranscriptionSettingsView: View {
             }
         }
         .navigationTitle("Transcription")
+        .toolbar(.hidden, for: .tabBar)
         .navigationBarTitleDisplayMode(.inline)
         .task { await assets.refresh() }
         .alert("Download failed", isPresented: Binding(

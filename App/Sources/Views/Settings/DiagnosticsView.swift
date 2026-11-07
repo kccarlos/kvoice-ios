@@ -2,13 +2,16 @@ import KVoiceKit
 import SwiftUI
 
 /// The on-device diagnostics log (no transcripts or keys, only lengths and
-/// flags) and the Toggle Dictation start strategy, for TestFlight testing.
+/// flags), and in debug builds the Toggle Dictation start strategy.
 struct DiagnosticsView: View {
     @State private var entries: [DiagnosticsLog.Entry] = []
+    #if DEBUG
     @State private var strategy = ToggleStartStrategy.current()
+    #endif
 
     var body: some View {
         List {
+            #if DEBUG
             Section {
                 Picker("Start strategy", selection: $strategy) {
                     Text("Return immediately").tag(ToggleStartStrategy.returnImmediately)
@@ -20,6 +23,7 @@ struct DiagnosticsView: View {
             } footer: {
                 Text("Hold until stopped keeps the shortcut running while it records, in case iOS only lends the microphone to a running shortcut.")
             }
+            #endif
 
             Section("Log, newest first") {
                 if entries.isEmpty {
@@ -36,6 +40,7 @@ struct DiagnosticsView: View {
             }
         }
         .navigationTitle("Diagnostics")
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button("Copy All", systemImage: "doc.on.doc") {
