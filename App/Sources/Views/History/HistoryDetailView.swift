@@ -49,12 +49,11 @@ struct HistoryDetailView: View {
             .padding()
         }
         .navigationTitle(record.modeName)
-        // A solid edge under the bottom bar, so text never shows through it.
-        .scrollEdgeEffectStyle(.hard, for: .bottom)
         .toolbar(.hidden, for: .tabBar)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItemGroup(placement: .bottomBar) {
+        // An opaque bar that insets the text, so nothing shows through it.
+        .safeAreaInset(edge: .bottom) {
+            HStack(spacing: 20) {
                 Button {
                     UIPasteboard.general.string = text
                     copied = true
@@ -67,6 +66,11 @@ struct HistoryDetailView: View {
                 Spacer()
                 Button("Delete", systemImage: "trash", role: .destructive) { confirmingDelete = true }
             }
+            .labelStyle(.iconOnly)
+            .font(.title3)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .background(.background)
         }
         .onDisappear { player.stop() }
         .task(id: copied) {
