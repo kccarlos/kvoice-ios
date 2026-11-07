@@ -79,6 +79,7 @@ struct BaseURLField: View {
     let placeholder: String
     let isRequired: Bool
     @State private var text = ""
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         LabeledContent(isRequired ? "Base URL" : "Base URL (optional)") {
@@ -87,8 +88,11 @@ struct BaseURLField: View {
                 .keyboardType(.URL)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .focused($isFocused)
+                // Not per keystroke: each new host asks for consent.
                 .onSubmit(commit)
-                .onChange(of: text) { commit() }
+                .onChange(of: isFocused) { if !isFocused { commit() } }
+                .onDisappear(perform: commit)
         }
         .onAppear { text = url?.absoluteString ?? "" }
     }

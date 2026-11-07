@@ -7,11 +7,14 @@ import Foundation
 /// process sees the same answer as the app.
 extension Settings {
     /// Whether data may be sent to `kind` at `baseURL`. A custom endpoint is
-    /// allowed per host, so changing its URL asks again.
+    /// allowed per host, so changing its URL asks again; without a host
+    /// nothing can be sent, so it asks once the URL is entered.
     public func allowsCloud(_ kind: ProviderKind, baseURL: URL? = nil) -> Bool {
-        guard kind == .appleIntelligence || allowedCloudProviders?.contains(kind) == true else { return false }
-        guard kind == .customOpenAICompatible, let host = Self.host(of: baseURL) else { return true }
-        return allowedCustomHosts?.contains(host) == true
+        if kind == .customOpenAICompatible {
+            guard let host = Self.host(of: baseURL) else { return true }
+            return allowedCustomHosts?.contains(host) == true
+        }
+        return kind == .appleIntelligence || allowedCloudProviders?.contains(kind) == true
     }
 
     /// The cloud provider a transcription engine sends audio to, if any.

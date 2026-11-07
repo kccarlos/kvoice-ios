@@ -70,9 +70,8 @@ import Testing
         let custom = ProviderConfiguration(kind: .customOpenAICompatible, baseURL: URL(string: "https://llm.example.com"))
         let old = Settings(defaultProvider: custom, allowedCloudProviders: [.customOpenAICompatible])
         #expect(old.providerNeedingConsent(modes: []) == .customOpenAICompatible)
-        // No URL yet: nothing can be sent, so allowing the provider is enough.
-        var empty = Settings(defaultProvider: ProviderConfiguration(kind: .customOpenAICompatible))
-        empty.allowCloud(.customOpenAICompatible)
+        // No URL yet: nothing can be sent, so the sheet waits for a host to name.
+        let empty = Settings(defaultProvider: ProviderConfiguration(kind: .customOpenAICompatible))
         #expect(empty.providerNeedingConsent(modes: []) == nil)
     }
 
