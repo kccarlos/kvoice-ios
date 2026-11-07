@@ -164,6 +164,8 @@ private struct KeyboardModeBar: View {
                 .padding(.trailing, 24)
             }
             .scrollIndicators(.hidden)
+            // At the top of the keyboard window iOS blurs the whole 44 pt strip.
+            .scrollEdgeEffectHidden(true, for: .all)
             .onAppear { if let id = model.activeModeID { proxy.scrollTo(id, anchor: .leading) } }
         }
         // Fade out at the trailing edge instead of a hard clip.
@@ -484,6 +486,7 @@ private struct KeyboardSpaceKey: View {
                 }
         )
         .accessibilityLabel("Space")
+        .accessibilityIdentifier("key-space")
         .accessibilityAddTraits([.isButton, .isKeyboardKey])
         .accessibilityAction { model.tap(.space) }
     }
