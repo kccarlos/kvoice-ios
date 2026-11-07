@@ -177,6 +177,26 @@ final class AppModel {
         ) { kind in ((try? secrets.apiKey(for: kind)) ?? nil)?.isEmpty == false }
     }
 
+    // MARK: Cloud consent (App Review 5.1.2(i))
+
+    /// A cloud provider chosen in Settings or a mode that the user has not
+    /// allowed yet: RootView asks before anything is sent to it.
+    var providerNeedingConsent: ProviderKind? {
+        settings.settings.providerNeedingConsent(modes: modes.modes)
+    }
+
+    func allowCloud(_ kind: ProviderKind) {
+        settings.settings.allowCloud(kind)
+    }
+
+    /// Declined or withdrawn: every choice that uses `kind` goes back on device.
+    func revokeCloud(_ kind: ProviderKind) {
+        settings.settings.revokeCloud(kind)
+        for mode in modes.modes {
+            if let onDevice = mode.removingCloud(kind) { try? modes.save(onDevice) }
+        }
+    }
+
     /// Opens Settings › AI formatting.
     func openAISettings() {
         selectedTab = .settings

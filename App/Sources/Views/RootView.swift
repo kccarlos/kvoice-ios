@@ -23,6 +23,12 @@ struct RootView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        .sheet(item: Binding(
+            get: { (onboardingDone || AppPreferences.skipsOnboarding) && !handoff.isPresentingRecorder ? model.providerNeedingConsent : nil },
+            set: { _ in }
+        )) { kind in
+            CloudConsentSheet(provider: kind)
+        }
         .fullScreenCover(isPresented: $handoff.isPresentingRecorder) {
             HandoffRecordingView()
         }

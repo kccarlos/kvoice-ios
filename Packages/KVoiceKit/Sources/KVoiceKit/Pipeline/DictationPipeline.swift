@@ -18,6 +18,8 @@ public enum DictationError: Error, Hashable, Sendable, LocalizedError {
     case transcriptionFailed(String)
     case formattingFailed(String)
     case missingAPIKey(ProviderKind)
+    /// The user has not allowed this cloud provider (or withdrew it).
+    case cloudConsentRequired(ProviderKind)
     case cancelled
 
     public var errorDescription: String? {
@@ -30,6 +32,8 @@ public enum DictationError: Error, Hashable, Sendable, LocalizedError {
         case .transcriptionFailed(let reason): reason
         case .formattingFailed(let reason): reason
         case .missingAPIKey(let provider): ProviderError.missingAPIKey(provider).errorDescription
+        case .cloudConsentRequired(let provider):
+            "Nothing was sent to \(provider.displayName). Open KVoice to allow it, or choose an on-device option in Settings."
         case .cancelled: "Dictation was cancelled."
         }
     }
@@ -242,7 +246,9 @@ public final class DictationPipeline {
     public func reformat(_ transcript: String, mode: Mode) async throws -> String {
         guard mode.usesAI else { return transcript }
         do {
-            let formatter = try formatters.makeFormatter(for: settings().provider(for: mode))
+            let provider = settings().provider(for: mode)
+            guard settings().allowsCloud(provider.kind) else { throw DictationError.cloudConsentRequired(provider.kind) }
+            let formatter = try formatters.makeFormatter(for: provider)
             return try await formatter.format(FormatRequest(transcript: transcript, mode: mode))
         } catch {
             throw DictationError(error, formatting: true)
@@ -261,6 +267,9 @@ public final class DictationPipeline {
         options.onStage?(.transcribing)
         let engineSelection = options.engineOverride ?? settings.engine(for: mode)
         let transcription: TranscriptionResult
+        if let cloud = Settings.cloudProvider(of: engineSelection), !settings.allowsCloud(cloud) {
+            throw DictationError.cloudConsentRequired(cloud)
+        }
         do {
             let engine = try engines.engine(for: engineSelection)
             transcription = try await engine.transcribe(TranscriptionRequest(
@@ -290,6 +299,7 @@ public final class DictationPipeline {
                 ? provider.kind.displayName
                 : "\(provider.kind.displayName) \(provider.model)"
             do {
+                guard settings.allowsCloud(provider.kind) else { throw DictationError.cloudConsentRequired(provider.kind) }
                 let formatter = try formatters.makeFormatter(for: provider)
                 formatted = try await formatter.format(FormatRequest(transcript: raw, mode: mode))
             } catch is CancellationError {

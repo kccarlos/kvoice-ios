@@ -37,17 +37,22 @@ public struct Settings: Codable, Sendable, Hashable {
     /// forth keeps what the user typed.
     public var providerConfigurations: [ProviderKind: ProviderConfiguration]
     public var retention: RetentionPolicy
+    /// Cloud providers the user allowed to receive audio or text (see
+    /// `allowsCloud(_:)`). Optional so settings saved before it decode.
+    public var allowedCloudProviders: Set<ProviderKind>?
 
     public init(
         defaultEngine: TranscriptionEngineSelection = .appleSpeech,
         defaultProvider: ProviderConfiguration = .appleIntelligence,
         providerConfigurations: [ProviderKind: ProviderConfiguration] = [:],
-        retention: RetentionPolicy = RetentionPolicy()
+        retention: RetentionPolicy = RetentionPolicy(),
+        allowedCloudProviders: Set<ProviderKind>? = nil
     ) {
         self.defaultEngine = defaultEngine
         self.defaultProvider = defaultProvider
         self.providerConfigurations = providerConfigurations
         self.retention = retention
+        self.allowedCloudProviders = allowedCloudProviders
     }
 
     /// The stored configuration for a provider, or its defaults.
