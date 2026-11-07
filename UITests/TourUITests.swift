@@ -41,9 +41,17 @@ final class TourUITests: XCTestCase {
         launch(["-kvoiceDemo", "-kvoiceSkipOnboarding", "-kvoiceScreen", "handoff"] + textSize)
         shot("40-handoff-stopped")
 
-        for (index, state) in ["ready", "noFullAccess", "recording", "shortcutRecording"].enumerated() {
-            launch(["-kvoiceKeyboardPreview", state] + textSize)
-            shot(String(format: "%02d-keyboard-%@", 50 + index, state))
+        // The keyboard UI in the app (KeyboardPreviewScreen); each state is
+        // reached by the preview itself, so the shots don't depend on tap timing.
+        let keyboardStates: [(state: String, waitFor: String)] = [
+            ("letters", "key-q"), ("shift", "key-q"), ("capsLock", "key-q"), ("numbers", "key-1"),
+            ("symbols", "key-["), ("noFullAccess", "key-q"), ("fullAccessCard", "Close"),
+            ("recording", "Finish dictation"), ("processing", "key-q"), ("shortcutRecording", "key-q"),
+        ]
+        for (index, entry) in keyboardStates.enumerated() {
+            launch(["-kvoiceKeyboardPreview", entry.state] + textSize)
+            XCTAssertTrue(app.buttons[entry.waitFor].waitForExistence(timeout: 5), "keyboard \(entry.state) did not appear")
+            shot(String(format: "%02d-keyboard-%@", 50 + index, entry.state))
         }
     }
 
