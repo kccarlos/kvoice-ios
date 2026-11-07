@@ -29,7 +29,9 @@ on device where available (otherwise KVoice uses the plain Dictation mode).
   use the microphone. When the user taps the keyboard's microphone, the
   keyboard opens its own containing app, KVoice (never any other app),
   which records. The user swipes back and the text is typed where they left
-  off. This happens only on that explicit tap.
+  off. This happens only on that explicit tap. Technically, the keyboard
+  asks the system to open KVoice's own URL scheme (kvoice://) through the
+  UIApplication in its responder chain; it never opens other apps or URLs.
 
 **Background audio (UIBackgroundModes: audio)**
 - Recording continues while the user switches apps: a dictation started
