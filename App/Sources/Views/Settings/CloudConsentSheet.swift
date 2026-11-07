@@ -24,7 +24,7 @@ struct CloudConsentSheet: View {
                     Label("The audio of each dictation, when it transcribes", systemImage: "waveform")
                 }
                 Label("The transcript and the mode's instructions, when it formats with an AI mode", systemImage: "text.quote")
-                Text("\(name)'s privacy policy and terms apply to what it receives. KVoice has no servers and never sees your dictation. You can withdraw this in Settings › Privacy.")
+                Text("\(name)'s privacy policy and terms apply to what it receives. KVoice has no servers, and its developer never receives your dictation. You can withdraw this in Settings › Privacy.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Button {

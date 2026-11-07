@@ -18,18 +18,22 @@ KVoice app, the KVoice keyboard and the KVoice widgets.
 
 ## What stays on your iPhone
 
-- **Recordings.** Audio is recorded only while you dictate. By default it
+- **Recordings.** Audio is recorded only while you dictate. While KVoice
+  keeps the microphone ready for the keyboard (standby), nothing is
+  recorded or saved until you start a dictation. By default a recording
   is kept in History so you can play it or transcribe it again. Turn off
   Settings › History › Keep audio recordings to delete each recording as
   soon as it is transcribed.
 - **Transcripts and formatted text** are kept in History. Settings ›
   History › Keep history can limit this to 30 or 7 days, and Delete All
-  History removes everything. Deleting KVoice deletes all of it.
+  History removes everything. Deleting KVoice deletes history, recordings,
+  modes and settings.
 - **Modes and settings** are stored in the app's shared container so the
   keyboard can read them.
 - **API keys** you enter are stored in the iOS Keychain on your iPhone,
   never in files or settings, and are sent only to the provider they
-  belong to.
+  belong to. iOS keeps Keychain items after an app is deleted, so remove
+  your keys in Settings before deleting KVoice if you want them gone.
 - **A diagnostics log** (states and timings, not your words) stays on the
   device in Settings › About › Diagnostics. KVoice never uploads it.
 - **The clipboard.** If Copy results automatically is on, finished text is
@@ -72,7 +76,8 @@ not keep or share what you type.
   You can also choose Apple Speech, Whisper or Apple Intelligence at any
   time.
 - **Delete data.** Delete single dictations in History, use Delete All
-  History, remove an API key in Settings, or delete the app.
+  History, remove an API key in Settings (do this before deleting the app,
+  as the Keychain keeps it), or delete the app.
 - **Microphone and speech recognition** permissions can be changed in the
   iOS Settings app.
 

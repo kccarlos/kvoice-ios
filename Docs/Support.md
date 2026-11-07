@@ -43,4 +43,5 @@ key. Fix it in Settings › AI formatting, or use Dictation mode.
 Stop Sending to *provider*. See the [privacy policy](Privacy.md).
 
 **How do I delete my data?** Settings › History › Delete All History, or
-delete the app. Nothing is stored anywhere else.
+delete the app. Remove API keys in Settings first: iOS keeps Keychain
+items after an app is deleted. Nothing is stored anywhere else.
