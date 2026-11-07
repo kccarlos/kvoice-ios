@@ -39,7 +39,12 @@ extension AppModel {
         isForeground: Bool,
         continueInForeground: @MainActor (String) async throws -> Void
     ) async throws {
+        // The picker is debug-only; Release ignores a stored value.
+        #if DEBUG
         let strategy = ToggleStartStrategy.current()
+        #else
+        let strategy = ToggleStartStrategy.returnImmediately
+        #endif
         let foreground = isForeground || UIApplication.shared.applicationState == .active
         let fromStandby = handoff.isStandingBy && recorder.isEngineRunning
         Self.log.append(
